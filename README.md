@@ -14,12 +14,12 @@ All configuration options are controlled via struct tags. A 'struct' is the prin
 
 # Getting Started
 
-Get the library
+Get the library:
 ```sh
 > go get github.com/pcelvng/go-config
 ```
 
-Use in your application
+Use in your application:
 ```sh
 package main
 
@@ -138,9 +138,6 @@ func main() {
         println("err: %v", err.Error())
         os.Exit(0)
     }
-    
-    println(appCfg.Username)
-    println(appCfg.Password)
 }
 
 type options struct {
@@ -160,7 +157,8 @@ Available Flags:
 -config,-c      The config file path (if using one). File extension must be one of "toml,yaml,yml,json,ini"
 -gen,-g         Generate a config template file. Accepts one of "toml,yaml,yml,json,ini,env", sends the template 
                 to stdout and exits. Default values are pre-populated in a template. The 'env' template generates
-                the environment values
+                the environment values with a shebang for execution in a shell script file.
+-show           Will show all config values and exit the application.
 
 -db-host,-h     The db host:port. (default: localhost:5432)
 -db-name,-n     It's the db name.
@@ -459,8 +457,12 @@ func main() {
         Host: "localhost:5432", // default host value
     }
     
+    // If there is an error then the config library will display the error and terminate the 
+    // application.
+    config.LoadOrDie(&appCfg)
     
-    config.LoadWithValidation(&appCfg)
+    // alternatively...
+    config.LoadWithValidationOrDie(&appCfg)
 }
 
 type options struct {
@@ -500,6 +502,17 @@ type options struct {
 ...
 
 > ./myapp -host=myhost:5432 -username=myusername -password=mypassword
+Host:     "myhost:5432" (default: "localhost:5432")
+Username: "myusername"
+Password: [redacted]
+```
+
+You may show the values by providing the 'show' flag. If provided, the application will show all the 
+config values and exit.
+
+```sh
+> ./myapp -show -host=myhost:5432 -username=myusername -password=mypassword
+
 Host:     "myhost:5432" (default: "localhost:5432")
 Username: "myusername"
 Password: [redacted]
