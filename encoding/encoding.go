@@ -35,6 +35,8 @@ type Unmarshaler interface {
 	// be called before or after it. Therefore, Unmarshal doesn't not return an error if a 'req'
 	// field value is not provided since that value could have already been provided or will
 	// be provided by a call to a different Unmarshaler.
+	//
+	// While recursing through
 	Unmarshal(interface{}) error
 }
 
