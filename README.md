@@ -1,6 +1,6 @@
 # go-config
 
-A straightforward go configuration library that supports flags, environment variables, toml, yaml and JSON 
+A straightforward go configuration library that supports flags, environment variables, toml, yaml, JSON and ini
 configuration formats.
 
 go-config also supports using multiple configuration format options at the same time. For example, you can provide 
@@ -14,16 +14,17 @@ All configuration options are controlled via struct tags. A 'struct' is the prin
 
 # Getting Started
 
-Get the library:
+Get the library
 ```sh
 > go get github.com/pcelvng/go-config
 ```
 
-Use in your application:
+Use in your application
 ```sh
 package main
 
 import (
+    "log"
     "os"
     
     "github.com/pcelvng/go-config"
@@ -36,6 +37,9 @@ func main() {
         println("err: %v", err.Error())
         os.Exit(0)
     }
+    
+    println(appCfg.Username)
+    println(appCfg.Password)
 }
 
 type options struct {
@@ -78,7 +82,7 @@ You may embed structures.
 
 ```sh
 type options struct {
-    DBName  string `flag:"db-name"`
+    DBName `flag:"db-name"`
     DBCreds string `flag:"db"`
 }
 
@@ -134,6 +138,9 @@ func main() {
         println("err: %v", err.Error())
         os.Exit(0)
     }
+    
+    println(appCfg.Username)
+    println(appCfg.Password)
 }
 
 type options struct {
@@ -151,10 +158,9 @@ myapp
 
 Available Flags:
 -config,-c      The config file path (if using one). File extension must be one of "toml,yaml,yml,json,ini"
--gen,-g         Generate a config template file. Accepts one of "toml,yaml,yml,json,env", sends the template 
+-gen,-g         Generate a config template file. Accepts one of "toml,yaml,yml,json,ini,env", sends the template 
                 to stdout and exits. Default values are pre-populated in a template. The 'env' template generates
-                the environment values with a shebang for execution in a shell script file.
--show           Will show all config values and exit the application.
+                the environment values
 
 -db-host,-h     The db host:port. (default: localhost:5432)
 -db-name,-n     It's the db name.
@@ -236,31 +242,6 @@ export DB_PW=;
 
 # alternatively write directly to bash file.
 > ./myapp -gen=env > myconfig.sh
-```
-
-When assigning structs as field values you may ignore the value as a prefix by using the "omitprefix" env value.
-This special value only works on struct and struct pointer types.
-
-```sh
-type options struct {
-    Host    string                     // Defaults to 'HOST'.
-    DB      DB      `env:"omitprefix"` // No prefix is expected or generated.
-}
-
-type DB struct {
-    Username string `env:"UN"` 
-    Password string `env:"PW"`
-}
-
-...
-
-> ./myapp -gen=env
-
-#!/usr/bin/env bash
-
-export HOST=localhost:5432;
-export UN=; # no prefix
-export PW=; # no prefix
 ```
 
 ## Other General Options
@@ -408,6 +389,7 @@ func main() {
     config.DisableTOML()
     config.DisableYAML()
     config.DisableJSON()
+    config.DisableINI()
     
     // You may disable all file configuration types at once to make the application only accept flags and env variables.
     // If all file config types are disabled then the default help screen and flags will no longer support the 'config'
@@ -422,6 +404,7 @@ func main() {
     config.OnlyEnv()
     config.OnlyTOML()
     config.OnlyJSON()
+    config.OnlyINI()
    
     err := config.Load(&appCfg)
     if err != nil {
@@ -476,12 +459,8 @@ func main() {
         Host: "localhost:5432", // default host value
     }
     
-    // If there is an error then the config library will display the error and terminate the 
-    // application.
-    config.LoadOrDie(&appCfg)
     
-    // alternatively...
-    config.LoadWithValidationOrDie(&appCfg)
+    config.LoadWithValidation(&appCfg)
 }
 
 type options struct {
@@ -521,17 +500,6 @@ type options struct {
 ...
 
 > ./myapp -host=myhost:5432 -username=myusername -password=mypassword
-Host:     "myhost:5432" (default: "localhost:5432")
-Username: "myusername"
-Password: [redacted]
-```
-
-You may show the values by providing the 'show' flag. If provided, the application will show all the 
-config values and exit.
-
-```sh
-> ./myapp -show -host=myhost:5432 -username=myusername -password=mypassword
-
 Host:     "myhost:5432" (default: "localhost:5432")
 Username: "myusername"
 Password: [redacted]
