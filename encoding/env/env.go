@@ -18,15 +18,10 @@ var (
 		'=',
 		'\x00', // NUL character
 	}
-
-	// Default separator for environment vars representing slices.
-	defSep = ","
 )
 
 func New() *Decoder {
-	return &Decoder{
-
-	}
+	return &Decoder{}
 }
 
 type Decoder struct {}
@@ -62,26 +57,83 @@ func populate(prefix string, v interface{}) error {
 		// If the field name is used it is converted to screaming snake case (uppercase with underscores).
 		name := vStruct.Type().Field(i).Name
 		tag := vStruct.Type().Field(i).Tag.Get(envTag) // env tag value
-		if tag != "" {
-			name = tag
-		} else {
-			// convert default name to screaming snake case.
+		switch tag {
+		case "-":
+			continue // ignore field
+		case "omitprefix":
+			// Should only be used on struct field types, in
+			// which case an existing prefix is passed through
+			// to the struct fields. The immediate struct field
+			// has no prefix.
+			name = ""
+		case "":
 			name = strcase.ToScreamingSnake(name)
+		default:
+			name = tag
 		}
 
 		// prepend prefix
 		if prefix != "" {
-			// yes - an existing underscore means there will be 2 underscores. The user is given almost full reign on
-			// naming as long as it's valid.
-			name = prefix + "_" + name
+			// An empty name takes on the prefix so that
+			// it can passthrough if the type is a struct or pointer struct.
+			if name == "" {
+				name = prefix
+			} else {
+				// An existing underscore means there will be 2 underscores. The user is given almost full reign on
+				// naming as long as it's valid.
+				name = prefix + "_" + name
+			}
 		}
 
-		// get env value
-		envVal := os.Getenv(name)
+		// if the value type is a struct or struct pointer then recurse.
+		switch field.Kind() {
+		case reflect.Struct:
+			// get a pointer and recurse
+			err := populate(name, field.Addr().Interface())
+			if err != nil {
+				return err
+			}
+		case reflect.Ptr:
+			// if it's a ptr to a struct then recurse otherwise fallthrough
+			if field.IsNil() {
+				z := reflect.New(field.Type().Elem())
+				field.Set(z)
+			}
 
-		// set value to field.
-		if err := setField(field, envVal); err != nil {
-			return fmt.Errorf("%s can not be set to %s (%s)", envVal, name, field.Type())
+			// check if it's pointing to a struct
+			if reflect.Indirect(field).Kind() == reflect.Struct {
+				// recurse on ptr struct
+				err := populate(name, field.Interface())
+				if err != nil {
+					return err
+				}
+
+				continue
+			}
+
+			// fallthrough since the underlying type is not
+			// a struct.
+			fallthrough
+		default:
+			// Validate "omitprefix" usage.
+			// Cannot be used on non-struct field types.
+			if tag == "omitprefix" {
+				return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+			}
+
+			// get env value
+			envVal := os.Getenv(name)
+
+			// if no value found then don't set because it will
+			// overwrite possible defaults.
+			if envVal == "" {
+				continue
+			}
+
+			// set value to field.
+			if err := setField(field, envVal); err != nil {
+				return fmt.Errorf("'%s' from '%s' cannot be set to %s (%s)", envVal, name, vStruct.Type().Field(i).Name, field.Type())
+			}
 		}
 	}
 
@@ -98,14 +150,30 @@ func setField(value reflect.Value, s string) error {
 	case reflect.String:
 		value.SetString(s)
 	case reflect.Bool:
-		b := strings.ToLower(s) == "true" || s == ""
-		value.SetBool(b)
+		switch strings.ToLower(s) {
+		case "true":
+			value.SetBool(true)
+		case "false", "":
+			value.SetBool(false)
+		default:
+			// the bool value should be explicit to tell user
+			// something is amiss.
+			return fmt.Errorf("cannot assign '%v' to bool type", s)
+		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		i, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
 			return err
 		}
+
 		value.SetInt(i)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		i, err := strconv.ParseUint(s, 10, 0)
+		if err != nil {
+			return err
+		}
+
+		value.SetUint(i)
 	case reflect.Float32, reflect.Float64:
 		f, err := strconv.ParseFloat(s, 0)
 		if err != nil {
@@ -122,12 +190,20 @@ func setField(value reflect.Value, s string) error {
 
 		value.Set(z)
 	case reflect.Slice:
+		// CONSIDER:
+		// - supporting format with square brackets at each end ie '[1,2,3]'
+
 		// create a slice and recursively assign the elements
 		baseType := reflect.TypeOf(value.Interface()).Elem()
-		vals := strings.Split(s, defSep)
+		s = strings.Trim(s, "[]") // trim brackets for bracket support.
+		vals := strings.Split(s, ",")
 
-		slice := reflect.MakeSlice(value.Type(), len(vals), len(vals))
+		slice := reflect.MakeSlice(value.Type(), 0, len(vals))
 		for _, v := range vals {
+			// trim whitespace from each value to support comma-separated with spaces.
+			v = strings.TrimSpace(v)
+			v = strings.Trim(v, `"'`)
+
 			// each item must be the correct type.
 			baseValue := reflect.New(baseType).Elem()
 			err := setField(baseValue, v)
@@ -138,16 +214,14 @@ func setField(value reflect.Value, s string) error {
 		}
 
 		value.Set(slice)
-	// struct is a special case that is handled elsewhere.
-	// maybe only handle structs that can be expressed as a single
-	// value such as time.Time or other structs with a custom UnmarshalText
-	// method.
-	//case reflect.Struct:
-	//	v := reflect.New(value.Type())
-	//	value.Set(v.Elem())
 
+	// struct is a special case that is handled in populate.
+	// If a struct comes through here then the code is wrong so panic.
+	case reflect.Struct:
+		msg := fmt.Sprintf("cannot assign '%v' to struct type '%v'", s, value.Type())
+		panic(msg)
 	default:
-		return fmt.Errorf("Unsupported type %v", value.Kind())
+		return fmt.Errorf("unsupported type '%v'", value.Kind())
 	}
 
 	return nil
