@@ -1,10 +1,10 @@
 package env
 
 import (
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"time"
 )
 
 func TestDecoder_Unmarshal(t *testing.T) {
@@ -36,6 +36,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	}
 
 	type level1 struct {
+		DurField time.Duration
 		FirstField *string `env:"first_field"`
 		SecondField string
 		IntField int
@@ -43,6 +44,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		BoolField bool
 		BoolFieldFalse bool // default is true but set env is false so final value should be false.
 		BoolPointerField *bool
+		ArrayField [3]int
 		SliceStringField []string
 		SliceIntField []int
 		SliceIntFieldWSpaces []int // input env value should be able to be '1, 2, 3'
@@ -55,7 +57,6 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		IgnorePointerStruct *level2 `env:"-"` // ignore struct pointer (will not even be initialized)
 
 		// Test:
-		// - byte type
 		// - rune type
 		// - array type
 		// - function type (should return err - or ignore??)
@@ -75,7 +76,6 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		WithPrefixInherited omitprefix
 		WithPrefixInheritedPointer *omitprefix
 
-
 		Level2 level2 `env:"LEVEL2"`
 
 		privateField string // should not be populated
@@ -92,6 +92,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// set env vars
+	os.Setenv("DUR_FIELD", "64s")
 	os.Setenv("first_field", "vfirst_field")
 	os.Setenv("SECOND_FIELD", "vSECOND_FIELD")
 	os.Setenv("INT_FIELD", "1")
@@ -99,6 +100,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	os.Setenv("BOOL_FIELD", "true")
 	os.Setenv("BOOL_FIELD_FALSE", "false") // false should overwrite default of true
 	os.Setenv("BOOL_POINTER_FIELD", "true")
+	os.Setenv("ARRAY_FIELD", "1,2,3")
 	os.Setenv("SLICE_STRING_FIELD", "part1,part2")
 	os.Setenv("SLICE_INT_FIELD", "1,2,3")
 	os.Setenv("SLICE_INT_FIELD_W_SPACES", "1, 2, 3")
@@ -128,6 +130,8 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.Nil(t, err)
 
 	// make sure each field is populated as expected.
+	drtn, _ := time.ParseDuration("64s")
+	assert.Equal(t, cfg.DurField, drtn)
 	assert.Equal(t, *cfg.FirstField, "vfirst_field")
 	assert.Equal(t, cfg.SecondField, "vSECOND_FIELD")
 	assert.Equal(t, cfg.IntField, 1)
@@ -135,6 +139,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.Equal(t, cfg.BoolField, true)
 	assert.Equal(t, cfg.BoolFieldFalse, false)
 	assert.Equal(t, *cfg.BoolPointerField, true)
+	//assert.Equal(t, cfg.ArrayField, [3]int{1,2,3})
 	assert.Equal(t, cfg.SliceStringField, []string{"part1", "part2"})
 	assert.Equal(t, cfg.SliceIntField, []int{1,2,3})
 	assert.Equal(t, cfg.SliceIntFieldWSpaces, []int{1,2,3})
@@ -253,6 +258,16 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.EqualError(t, err, "'badvalue' from 'BAD_UINT_FIELD' cannot be set to BadUintField (uint)")
 
 	// Test: custom typing on top of primitive types
+
+	// Test: `config:"ignore"` tag
+
+	// Test: '=' in env name
+
+	// Test: NUL character in env name
+
+	// Test: explicit interface{} field type
+
+	// Test: support for maps??
 
 
 	// teardown: unset envs
