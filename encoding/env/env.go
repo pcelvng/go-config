@@ -3,15 +3,17 @@ package env
 import (
 	"fmt"
 	"github.com/iancoleman/strcase"
+	"log"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
 	envTag = "env" // Expected env struct tag name.
-	hideTag = "hide" // Expected hide struct tag name.
+	configTag = "config" // Expected general config values (only "ignore" supported ATM).
 
 	// list of characters that are not allowed in an env name.
 	envInvalidChars = []byte{
@@ -31,7 +33,8 @@ func (d *Decoder) Unmarshal(v interface{}) error {
 	return populate("", v)
 }
 
-// populate is a recursive function for generating names of expected env variables.
+// populate is a recursive function for populating struct values from env variables.
+//
 // The case-sensitive value of prefix is pre-pended to each returned expected env variable
 // separated by an underscore '_'.
 //
@@ -52,7 +55,13 @@ func populate(prefix string, v interface{}) error {
 			continue
 		}
 
-		// tag name, if present, trumps the generated field name.
+		// Check general 'config' tag value. if it has a "ignore" value
+		// then skip it entirely.
+		if cfgV := vStruct.Type().Field(i).Tag.Get(configTag); cfgV == "ignore" {
+			continue
+		}
+
+		// env tag name, if present, trumps the generated field name.
 		//
 		// If the field name is used it is converted to screaming snake case (uppercase with underscores).
 		name := vStruct.Type().Field(i).Name
@@ -87,6 +96,9 @@ func populate(prefix string, v interface{}) error {
 
 		// if the value type is a struct or struct pointer then recurse.
 		switch field.Kind() {
+		// explicity ignored list of types.
+		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface:
+			continue
 		case reflect.Struct:
 			// get a pointer and recurse
 			err := populate(name, field.Addr().Interface())
@@ -145,6 +157,8 @@ func populate(prefix string, v interface{}) error {
 // or creating a generic slice of type value.
 //
 // All structs and that implement encoding.TextUnmarshaler are supported
+//
+// Does not support array literals.
 func setField(value reflect.Value, s string) error {
 	switch value.Kind() {
 	case reflect.String:
@@ -160,7 +174,21 @@ func setField(value reflect.Value, s string) error {
 			// something is amiss.
 			return fmt.Errorf("cannot assign '%v' to bool type", s)
 		}
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int64:
+		log.Println("int64 duration "+s)
+		// check for time.Duration int64 special case.
+		//
+		// TODO: check if this still works when time package is vendored or there is a way to fake this.
+		if value.Type().String() == "time.Duration" {
+			d, err := time.ParseDuration(s)
+			if err != nil {
+				return err
+			}
+
+			value.SetInt(int64(d))
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+
 		i, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
 			return err
@@ -172,6 +200,7 @@ func setField(value reflect.Value, s string) error {
 		if err != nil {
 			return err
 		}
+
 
 		value.SetUint(i)
 	case reflect.Float32, reflect.Float64:
@@ -190,9 +219,7 @@ func setField(value reflect.Value, s string) error {
 
 		value.Set(z)
 	case reflect.Slice:
-		// CONSIDER:
-		// - supporting format with square brackets at each end ie '[1,2,3]'
-
+		log.Println("slice: " + s)
 		// create a slice and recursively assign the elements
 		baseType := reflect.TypeOf(value.Interface()).Elem()
 		s = strings.Trim(s, "[]") // trim brackets for bracket support.
@@ -221,6 +248,7 @@ func setField(value reflect.Value, s string) error {
 		msg := fmt.Sprintf("cannot assign '%v' to struct type '%v'", s, value.Type())
 		panic(msg)
 	default:
+		log.Println(s)
 		return fmt.Errorf("unsupported type '%v'", value.Kind())
 	}
 

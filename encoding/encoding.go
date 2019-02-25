@@ -15,8 +15,8 @@ type Unmarshaler interface {
 	// and a 'flag' struct tag was provided as `flag:"-"` then no value should be read
 	// in to that struct member.
 	//
-	// Unmarshal should also ignore reading in values that have the 'hide' struct tag
-	// set to 'true'.
+	// Unmarshal should also ignore reading in values that have the 'config' struct tag
+	// with an 'ignore' value.
 	//
 	// Unmarshal is not responsible for validation other than correct formatting
 	// and type matching.
@@ -52,11 +52,19 @@ type Marshaler interface {
 	// in the returned bytes template.
 	//
 	// Marshal should support the following struct tags:
-	// - hide (hide="true" means the member is not represented in the returned bytes)
+	// - config (config="ignore" ignore the field)
 	// - req (communicates if the field is required)
 	// - desc (field description; most likely expressed as a comment)
 	// - format specific tag (ie "env" for environment variables)
 	// - time (for time.Time field types)
+	//
+	// Additionally Marshal will ignore the following field types:
+	// - functions
+	// - interfaces
+	// - complex64, complex128
+	// - arrays (slices are ok)
+	// - channels
+	// - private fields
 	//
 	// Marshal and Unmarshal should be idempotent. That is, the generated template
 	// from Marshal should produce identical struct values when read back in by Unmarshal.
