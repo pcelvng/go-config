@@ -36,11 +36,33 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		NoPrefix aField `env:"omitprefix"`
 	}
 
+	type Embedded struct {
+		EmbeddedField string
+	}
+
+	type EmbeddedPointer struct {
+		EmbeddedPointerField string
+	}
+
+	type EmbeddedWPrefix struct {
+		EmbeddedWPrefixField string
+	}
+
+	type EmbeddedCustomPrefix struct {
+		EmbeddedCustomField string
+	}
+
 	type level1 struct {
+		// note: private embedded structs are not accessible.
+		Embedded `env:"omitprefix"` // if omitprefix not provided then the prefix is "Embedded"
+		*EmbeddedPointer `env:"omitprefix"` // pointer also is valid
+		EmbeddedWPrefix // keep prefix
+		EmbeddedCustomPrefix `env:"E"`
+
 		DurField time.Duration
 		TimeField time.Time // default format is RFC3339
 		TimeCustomField time.Time `fmt:"2006/01/02"` // custom format
-		TimePointerField *time.Time
+		TimePointerField *time.Time // *time.Time supported but be careful with referencing time.Time!
 		FirstField *string `env:"first_field"`
 		SecondField string
 		IntField int
@@ -96,6 +118,10 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// set env vars
+	os.Setenv("EMBEDDED_FIELD", "vEMBEDDED_FIELD")
+	os.Setenv("EMBEDDED_POINTER_FIELD", "vEMBEDDED_POINTER_FIELD")
+	os.Setenv("EMBEDDED_W_PREFIX_EMBEDDED_W_PREFIX_FIELD", "vEMBEDDED_W_PREFIX_EMBEDDED_W_PREFIX_FIELD")
+	os.Setenv("E_EMBEDDED_CUSTOM_FIELD", "vE_EMBEDDED_CUSTOM_FIELD")
 	os.Setenv("DUR_FIELD", "64s")
 	os.Setenv("TIME_FIELD", "2020-01-01T11:04:01Z") // RFC3339
 	os.Setenv("TIME_CUSTOM_FIELD", "2020/01/02") // custom format
@@ -139,6 +165,10 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	// make sure each field is populated as expected.
 	drtn, _ := time.ParseDuration("64s")
 	dte := time.Date(2020, 01, 01, 11, 04, 01, 0,time.UTC)
+	assert.Equal(t, cfg.EmbeddedField, "vEMBEDDED_FIELD")
+	assert.Equal(t, cfg.EmbeddedPointerField, "vEMBEDDED_POINTER_FIELD")
+	assert.Equal(t, cfg.EmbeddedWPrefixField, "vEMBEDDED_W_PREFIX_EMBEDDED_W_PREFIX_FIELD")
+	assert.Equal(t, cfg.EmbeddedCustomField, "vE_EMBEDDED_CUSTOM_FIELD")
 	assert.Equal(t, cfg.DurField, drtn)
 	assert.Equal(t, cfg.TimeField, dte)
 	assert.Equal(t, cfg.TimeCustomField, time.Date(2020,01,02,0,0,0,0,time.UTC))
