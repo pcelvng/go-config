@@ -1,10 +1,11 @@
 package env
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDecoder_Unmarshal(t *testing.T) {
@@ -37,6 +38,9 @@ func TestDecoder_Unmarshal(t *testing.T) {
 
 	type level1 struct {
 		DurField time.Duration
+		TimeField time.Time // default format is RFC3339
+		TimeCustomField time.Time `fmt:"2006/01/02"` // custom format
+		TimePointerField *time.Time
 		FirstField *string `env:"first_field"`
 		SecondField string
 		IntField int
@@ -93,6 +97,9 @@ func TestDecoder_Unmarshal(t *testing.T) {
 
 	// set env vars
 	os.Setenv("DUR_FIELD", "64s")
+	os.Setenv("TIME_FIELD", "2020-01-01T11:04:01Z") // RFC3339
+	os.Setenv("TIME_CUSTOM_FIELD", "2020/01/02") // custom format
+	os.Setenv("TIME_POINTER_FIELD", "2020-01-01T11:04:01Z") // RFC3339
 	os.Setenv("first_field", "vfirst_field")
 	os.Setenv("SECOND_FIELD", "vSECOND_FIELD")
 	os.Setenv("INT_FIELD", "1")
@@ -131,7 +138,11 @@ func TestDecoder_Unmarshal(t *testing.T) {
 
 	// make sure each field is populated as expected.
 	drtn, _ := time.ParseDuration("64s")
+	dte := time.Date(2020, 01, 01, 11, 04, 01, 0,time.UTC)
 	assert.Equal(t, cfg.DurField, drtn)
+	assert.Equal(t, cfg.TimeField, dte)
+	assert.Equal(t, cfg.TimeCustomField, time.Date(2020,01,02,0,0,0,0,time.UTC))
+	assert.Equal(t, *cfg.TimePointerField, dte)
 	assert.Equal(t, *cfg.FirstField, "vfirst_field")
 	assert.Equal(t, cfg.SecondField, "vSECOND_FIELD")
 	assert.Equal(t, cfg.IntField, 1)
@@ -268,6 +279,8 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	// Test: explicit interface{} field type
 
 	// Test: support for maps??
+
+	// Test: embedded structs
 
 
 	// teardown: unset envs
