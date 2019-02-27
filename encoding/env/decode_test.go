@@ -289,6 +289,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	err = d.Unmarshal(&cfgBadInt)
 	assert.EqualError(t, err, "'badvalue' from 'BAD_INT_FIELD' cannot be set to BadIntField (int)")
 
+	// test bad uint field
 	type badUint struct {
 		BadUintField uint
 	}
@@ -299,6 +300,13 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	cfgBadUint := badUint{}
 	err = d.Unmarshal(&cfgBadUint)
 	assert.EqualError(t, err, "'badvalue' from 'BAD_UINT_FIELD' cannot be set to BadUintField (uint)")
+
+	// Test: pass in pointer of non-struct
+	otherPtr := 5
+
+	d = &Decoder{}
+	err = d.Unmarshal(&otherPtr)
+	assert.EqualError(t, err, "'*int' must be a non-nil pointer struct")
 
 	// teardown: unset envs
 	os.Clearenv()
