@@ -36,10 +36,15 @@ func (d *Decoder) Unmarshal(v interface{}) error {
 // If a struct pointer value is nil then the struct will be initialized and the struct pointer value
 // populated.
 func populate(prefix string, v interface{}) error {
-	// verify that v is struct pointer. Should always be a pointer.
+	// Verify that v is struct pointer. Should not be nil.
 	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
-		return fmt.Errorf("%v must be a non nil pointer", reflect.TypeOf(v))
+		return fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
+
+	// Must be pointing to a struct.
+	} else if pv := reflect.Indirect(value); pv.Kind() != reflect.Struct {
+		return fmt.Errorf("'%v' must be a non-nil pointer struct", reflect.TypeOf(v))
 	}
+
 
 	// iterate through struct fields.
 	vStruct := reflect.ValueOf(v).Elem()
