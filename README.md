@@ -1,5 +1,7 @@
 # go-config
 
+Effortless, stateful go configuration.
+
 A straightforward go configuration library that supports flags, environment variables, toml, yaml and JSON 
 configuration formats.
 
@@ -305,11 +307,12 @@ type options struct {
 }
 ``` 
 
-You can disable a struct field entirely by providing the 'hide' tag.
+You can disable a struct field entirely by providing the 'ignore' value in
+the 'config' tag.
 
 ```sh
 type options struct {
-    DBName `hide:"true"` // DBName disabled entirely.
+    DBName `config:"ignore"` // DBName disabled entirely.
 }
 ```
 
@@ -537,6 +540,37 @@ Username: "myusername"
 Password: [redacted]
 ```
 
+All types support time.Time and time.Duration marshaling and unmarshaling. 
+
+time.Time default expected format is time.RFC339. You can specify a custom format in
+the value of the 'fmt' struct tag. Formatting is the same as that supported in the
+time package. For readability and simplicity you can also supply time package variable
+name of the format. For example, if you wanted to use the time.RFC3339Nano format the 'fmt'
+tag/value would be `fmt:"RFC3339Nano"`. Unmarshaling will expect that format and marshaling
+will place the default value in that format. Marshaling will also automatically place
+an inline comment specifying the expected time format.
+
+```sh
+type options struct {
+    DefaultFormat time.Time // Defaults to expect time.RFC339 format.
+    OtherStandardFormat time.Time `fmt:"RFC339Nano"` // Expects the time.RFC339Nano format.
+    CustomTimeField time.Time `fmt:"2006/01/02"`
+}
+
+func main() {
+    cfg := &options{
+        CustomTimeField: time.
+    }
+}
+
+# env example but same idea for other formats.
+> ./myapp -gen=env
+
+#!/usr/bin/env bash
+export DEFAULT_FORMAT= ; # "2006-01-02T15:04:05Z07:00" (RFC3339)
+export OTHER_STANDARD_FORMAT= ; # "2006-01-02T15:04:05.999999999Z07:00" (RFC3339Nano)
+export CUSTOM_TIME_FORMAT= ; # "2006/01/02"
+```
 
 ### Precedence
 
