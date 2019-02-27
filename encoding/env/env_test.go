@@ -52,6 +52,12 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		EmbeddedCustomField string
 	}
 
+	type SliceStruct struct {
+		SliceField string
+	}
+
+	type CustomIntType int
+
 	type level1 struct {
 		// note: private embedded structs are not accessible.
 		Embedded `env:"omitprefix"` // if omitprefix not provided then the prefix is "Embedded"
@@ -66,6 +72,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		FirstField *string `env:"first_field"`
 		SecondField string
 		IntField int
+		CustomIntField CustomIntType // just treated as an int
 		IntPointerField *int
 		BoolField bool
 		BoolFieldFalse bool // default is true but set env is false so final value should be false.
@@ -78,19 +85,11 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		SliceIntFieldWQuotes2 []int // input env value should be able to be "'1','2','3''
 		SliceIntFieldSquareBrackets []int // input env value should be able to be "[1,2,3]"
 		SliceFloatField []float32
+		SliceStructField []SliceStruct // slice of structs is ignored
+		MapField map[string]string // maps are ignored.
 		IgnoreField string `env:"-"` // ignore field
 		IgnoreStruct level2 `env:"-"` // ignore struct
 		IgnorePointerStruct *level2 `env:"-"` // ignore struct pointer (will not even be initialized)
-
-		// Test:
-		// - rune type
-		// - array type
-		// - function type (should return err - or ignore??)
-		// - union type (don't know what that is)
-		// - map type (should support???)
-		// - channel type (should return err - or ignore??)
-		// - interface type (should return err?? - or ignore?? or see what happens??)
-		// - complex64, complex128 (should return err?? - or ignore?? or see what happens??)
 
 		// omitprefix
 		// this level omits prefix but the next one does not.
@@ -129,6 +128,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	os.Setenv("first_field", "vfirst_field")
 	os.Setenv("SECOND_FIELD", "vSECOND_FIELD")
 	os.Setenv("INT_FIELD", "1")
+	os.Setenv("CUSTOM_INT_FIELD", "3")
 	os.Setenv("INT_POINTER_FIELD", "2")
 	os.Setenv("BOOL_FIELD", "true")
 	os.Setenv("BOOL_FIELD_FALSE", "false") // false should overwrite default of true
@@ -141,6 +141,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	os.Setenv("SLICE_INT_FIELD_W_QUOTES_2", `'1','2','3'`)
 	os.Setenv("SLICE_INT_FIELD_SQUARE_BRACKETS", "[1,2,3]")
 	os.Setenv("SLICE_FLOAT_FIELD", "1.1,2.2,3.3")
+	os.Setenv("SLICE_STRUCT_FIELD", "ignored") // structs as single values are ignored.
 	os.Setenv("IGNORE_FIELD", "vIGNORE_FIELD") // should not get populated
 	os.Setenv("-", "vIGNORE_FIELD") // make sure it doesn't look for a '-' env variable.
 	os.Setenv("IGNORE_STRUCT", "vIGNORE_STRUCT") // should not get populated
@@ -176,6 +177,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	assert.Equal(t, *cfg.FirstField, "vfirst_field")
 	assert.Equal(t, cfg.SecondField, "vSECOND_FIELD")
 	assert.Equal(t, cfg.IntField, 1)
+	assert.Equal(t, int(cfg.CustomIntField), 3) // custom int type just treated as an int.
 	assert.Equal(t, *cfg.IntPointerField, 2)
 	assert.Equal(t, cfg.BoolField, true)
 	assert.Equal(t, cfg.BoolFieldFalse, false)
@@ -297,21 +299,6 @@ func TestDecoder_Unmarshal(t *testing.T) {
 	cfgBadUint := badUint{}
 	err = d.Unmarshal(&cfgBadUint)
 	assert.EqualError(t, err, "'badvalue' from 'BAD_UINT_FIELD' cannot be set to BadUintField (uint)")
-
-	// Test: custom typing on top of primitive types
-
-	// Test: `config:"ignore"` tag
-
-	// Test: '=' in env name
-
-	// Test: NUL character in env name
-
-	// Test: explicit interface{} field type
-
-	// Test: support for maps??
-
-	// Test: embedded structs
-
 
 	// teardown: unset envs
 	os.Clearenv()

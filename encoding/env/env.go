@@ -15,13 +15,6 @@ var (
 	envTag = "env" // Expected env struct tag name.
 	configTag = "config" // Expected general config values (only "ignore" supported ATM).
 	fmtTag = "fmt"
-
-	// list of characters that are not allowed in an env name.
-	envInvalidChars = []byte{
-		'=',
-		'\x00', // NUL character
-	}
-
 )
 
 func New() *Decoder {
@@ -99,7 +92,7 @@ func populate(prefix string, v interface{}) error {
 		// if the value type is a struct or struct pointer then recurse.
 		switch field.Kind() {
 		// explicity ignored list of types.
-		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface:
+		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map:
 			continue
 		case reflect.Struct:
 			// time.Time special struct case
@@ -341,11 +334,9 @@ func setField(value reflect.Value, s string) error {
 
 		value.Set(slice)
 
-	// struct is a special case that is handled in populate.
-	// If a struct comes through here then the code is wrong so panic.
+	// structs as values are simply ignored. They don't map cleanly for environment variables.
 	case reflect.Struct:
-		msg := fmt.Sprintf("cannot assign '%v' to struct type '%v'", s, value.Type())
-		panic(msg)
+		return nil
 	default:
 		return fmt.Errorf("unsupported type '%v'", value.Kind())
 	}
