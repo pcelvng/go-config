@@ -1,5 +1,10 @@
 package config
 
+import (
+	"flag"
+	"reflect"
+)
+
 type Hide struct {
 	HField string `hide`
 }
@@ -8,12 +13,29 @@ type Hide struct {
 // this does mean that the variable can probably only be set with a ":=" which would prevent
 // usage outside of a single function.
 type goConfig struct {
+	config interface{}
+
+	envEnabled  bool
+	fileEnabled bool
+	flagEnabled bool
+
+	// flags
+	showVersion *bool
+	version     string
+	description string
+	genConfig   *bool
+
+	flagsMap map[string]interface{}
 }
 
 // New verifies that c is a valid - must be a struct pointer (maybe validation should happen in parse)
 // it goes through the struct and sets up corresponding flags to be used during parsing
 func New(c interface{}) *goConfig {
-	return &goConfig{}
+	return &goConfig{
+		envEnabled:  true,
+		fileEnabled: true,
+		flagEnabled: true,
+	}
 }
 
 // Parse and set the configs in the following priority from lowest to highest
@@ -45,26 +67,32 @@ func ParseFlag(i interface{}) error {
 // Version string that describes the app.
 // this enables the -v (version) flag
 func (g *goConfig) Version(s string) *goConfig {
+	g.showVersion = flag.Bool("v", false, "app version")
+	g.version = s
 	return g
 }
 
 // Description for the app, this message is prepended to the help flag
 func (g *goConfig) Description(s string) *goConfig {
+	g.description = s
 	return g
 }
 
 // DisableEnv tells goConfig not to use environment variables
 func (g *goConfig) DisableEnv() *goConfig {
+	g.envEnabled = false
 	return g
 }
 
 // DisableFile removes the c (config) flag used for defining a config file
 func (g *goConfig) DisableFile() *goConfig {
+	g.fileEnabled = false
 	return g
 }
 
 // DisableFlag prevents setting variables from flags.
 // Non variable flags should still work [c (config), v (version), g (gen)]
 func (g *goConfig) DisableFlag() *goConfig {
+	g.flagEnabled = false
 	return g
 }
