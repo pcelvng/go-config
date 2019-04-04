@@ -1,9 +1,11 @@
-package flag
+package flg
 
 import (
 	"encoding"
+	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -25,9 +27,12 @@ type Flags struct {
 // New creates a custom flagset based on the struct i.
 //
 func New(i interface{}) (*Flags, error) {
+	if !isValidConfig(i) {
+		return nil, errors.New("invalid config")
+	}
 	f := &Flags{
 		values:  make(map[string]interface{}),
-		flagSet: flag.NewFlagSet("go-config", flag.ExitOnError),
+		flagSet: flag.NewFlagSet(os.Args[0], flag.ExitOnError),
 	}
 	vStruct := reflect.ValueOf(i).Elem()
 	for i := 0; i < vStruct.NumField(); i++ {
@@ -62,35 +67,20 @@ func New(i interface{}) (*Flags, error) {
 		// explicit list of unsupported types
 		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map, reflect.Slice:
 			continue
-		case reflect.Int:
-			f.values[name] = f.flagSet.Int(name, field.Interface().(int), desc)
-		case reflect.Int8:
-			f.values[name] = f.flagSet.Int(name, int(field.Interface().(int8)), desc)
-		case reflect.Int16:
-			f.values[name] = f.flagSet.Int(name, int(field.Interface().(int16)), desc)
-		case reflect.Int32:
-			f.values[name] = f.flagSet.Int(name, int(field.Interface().(int32)), desc)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+			f.values[name] = f.flagSet.Int(name, int(field.Int()), desc)
 		case reflect.Int64:
-			f.values[name] = f.flagSet.Int64(name, field.Interface().(int64), desc)
-		case reflect.Uint:
-			f.values[name] = f.flagSet.Uint(name, field.Interface().(uint), desc)
-		case reflect.Uint8:
-			f.values[name] = f.flagSet.Uint(name, uint(field.Interface().(uint8)), desc)
-		case reflect.Uint16:
-			f.values[name] = f.flagSet.Uint(name, uint(field.Interface().(uint16)), desc)
-		case reflect.Uint32:
-			f.values[name] = f.flagSet.Uint(name, uint(field.Interface().(uint32)), desc)
+			f.values[name] = f.flagSet.Int64(name, field.Int(), desc)
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+			f.values[name] = f.flagSet.Uint(name, uint(field.Uint()), desc)
 		case reflect.Uint64:
-			f.values[name] = f.flagSet.Uint64(name, field.Interface().(uint64), desc)
+			f.values[name] = f.flagSet.Uint64(name, field.Uint(), desc)
 		case reflect.String:
-			f.values[name] = f.flagSet.String(name, field.Interface().(string), desc)
+			f.values[name] = f.flagSet.String(name, field.String(), desc)
 		case reflect.Bool:
-			f.values[name] = f.flagSet.Bool(name, field.Interface().(bool), desc)
-		case reflect.Float32:
-			// note float32 has precision issues
-			f.values[name] = f.flagSet.Float64(name, float64(field.Interface().(float32)), desc)
-		case reflect.Float64:
-			f.values[name] = f.flagSet.Float64(name, field.Interface().(float64), desc)
+			f.values[name] = f.flagSet.Bool(name, field.Bool(), desc)
+		case reflect.Float32, reflect.Float64:
+			f.values[name] = f.flagSet.Float64(name, field.Float(), desc)
 		case reflect.Ptr:
 			// todo dereference and handle. use recursion
 			field = field.Elem()
@@ -112,6 +102,38 @@ func New(i interface{}) (*Flags, error) {
 		}
 	}
 	return f, nil
+}
+
+// Parse the internal flags and the user defined flags
+func (f *Flags) Parse() error {
+
+	// add other defined flags
+	flag.VisitAll(func(flg *flag.Flag) {
+		f.flagSet.Var(flg.Value, flg.Name, flg.Usage)
+	})
+
+	return f.flagSet.Parse(os.Args[1:])
+}
+
+// Unmarshal the given struct from the flagSet
+func (f *Flags) Unmarshal(i interface{}) error {
+	return nil
+}
+
+// isValidConfig checks if a config can be properly read and written to.
+// must be a pointer to a config and not nil
+func isValidConfig(i interface{}) bool {
+	if i == nil {
+		return false
+	}
+	v := reflect.ValueOf(i)
+	if v.Kind() != reflect.Ptr {
+		return false
+	}
+	if v.Elem().Kind() != reflect.Struct {
+		return false
+	}
+	return true
 }
 
 func isAlias(v reflect.Value) bool {

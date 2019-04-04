@@ -2,7 +2,11 @@ package config
 
 import (
 	"flag"
-	"reflect"
+	"fmt"
+	"os"
+
+	flg "github.com/pcelvng/go-config/encoding/flag"
+	"github.com/pkg/errors"
 )
 
 type Hide struct {
@@ -24,8 +28,9 @@ type goConfig struct {
 	version     string
 	description string
 	genConfig   *bool
+	configPath  *string
 
-	flagsMap map[string]interface{}
+	flags *flg.Flags
 }
 
 // New verifies that c is a valid - must be a struct pointer (maybe validation should happen in parse)
@@ -35,6 +40,7 @@ func New(c interface{}) *goConfig {
 		envEnabled:  true,
 		fileEnabled: true,
 		flagEnabled: true,
+		config:      c,
 	}
 }
 
@@ -43,6 +49,25 @@ func New(c interface{}) *goConfig {
 // 2. flags (exception of config and version flag which are processed first)
 // 3. files (toml, yaml, json)
 func (g *goConfig) Parse() error {
+	f, err := flg.New(g.config)
+	if err != nil {
+		return errors.Wrap(err, "flag setup")
+	}
+	g.flags = f
+	if g.fileEnabled {
+		g.genConfig = flag.Bool("g", false, "generate config file")
+		g.configPath = flag.String("c", "", "path for config file")
+	}
+	// todo: prepend description to help usage
+	g.flags.Parse()
+
+	if *g.showVersion {
+		fmt.Println(g.version)
+		os.Exit(0)
+	}
+
+	// load in lowest priority order: env -> file -> flag
+
 	return nil
 }
 
@@ -67,7 +92,7 @@ func ParseFlag(i interface{}) error {
 // Version string that describes the app.
 // this enables the -v (version) flag
 func (g *goConfig) Version(s string) *goConfig {
-	g.showVersion = flag.Bool("v", false, "app version")
+	g.showVersion = flag.Bool("v", false, "show app version")
 	g.version = s
 	return g
 }

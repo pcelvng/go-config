@@ -1,6 +1,7 @@
-package flag
+package flg
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ func TestNew(t *testing.T) {
 	type Aint int
 	type Astring string
 	type AFloat64 float64
+	type Auint uint
 	fn := func(args ...interface{}) (interface{}, error) {
 		f, err := New(args[0])
 		if err != nil {
@@ -33,6 +35,13 @@ func TestNew(t *testing.T) {
 		return result, nil
 	}
 	cases := trial.Cases{
+		"nil config": {
+			ShouldErr: true,
+		},
+		"non pointer": {
+			Input:     struct{}{},
+			ShouldErr: true,
+		},
 		"ints": {
 			Input: &struct {
 				Int   int
@@ -142,12 +151,33 @@ func TestNew(t *testing.T) {
 				"my-struct": {Def: "a"},
 			},
 		},
-		/* "alias no marshaler": {
-			Input: &struct{ Int Aint }{Int: Aint(3)},
-			Expected: map[string]*tFlag{
-				"int": {Def: "3"},
+		"alias no marshaler": {
+			Input: &struct {
+				Int    Aint
+				Uint   Auint
+				Float  AFloat64
+				String Astring
+			}{
+				Int:    Aint(3),
+				Uint:   Auint(4),
+				Float:  AFloat64(12.32),
+				String: Astring("hello"),
 			},
-		}, */
+			Expected: map[string]*tFlag{
+				"int":    {Def: "3"},
+				"uint":   {Def: "4"},
+				"float":  {Def: "12.32"},
+				"string": {Def: "hello"},
+			},
+		},
+		"alias with marshaler": {
+			Input: &struct {
+				Number mAlias
+			}{Number: mAlias(1)},
+			Expected: map[string]*tFlag{
+				"number": {Def: "one"},
+			},
+		},
 		"pointers": {
 			Input: &struct {
 				Int *int
@@ -167,6 +197,27 @@ func TestNew(t *testing.T) {
 		},
 	}
 	trial.New(fn, cases).SubTest(t)
+}
+
+type mAlias int
+
+var nums = []string{"zero", "one", "two", "three", "four", "five"}
+
+func (i mAlias) MarshalText() ([]byte, error) {
+	if int(i) < len(nums) {
+		return []byte(nums[i]), nil
+	}
+	return nil, errors.New("invalid number")
+}
+
+func (i *mAlias) UnmarshalText(b []byte) error {
+	for k, v := range nums {
+		if v == string(b) {
+			*i = mAlias(k)
+			return nil
+		}
+	}
+	return errors.New("invalid number")
 }
 
 type marshalStruct struct {
