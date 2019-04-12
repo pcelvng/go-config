@@ -11,17 +11,18 @@ import (
 	"time"
 
 	"github.com/iancoleman/strcase"
+	"github.com/jbsmith7741/go-tools/appenderr"
 )
 
 const (
-	flagTag = "flag"
-	descTag = "comment" // do we want a different tag for the flag vs toml?
-	fmtTag  = "fmt"
+	flagTag   = "flag"
+	descTag   = "comment" // do we want a different tag for the flag vs toml?
+	fmtTag    = "fmt"
+	configTag = "config"
 )
 
 type Flags struct {
-	values  map[string]interface{} // map[VariableName]value
-	flagSet *flag.FlagSet
+	*flag.FlagSet
 }
 
 // New creates a custom flagset based on the struct i.
@@ -30,10 +31,7 @@ func New(i interface{}) (*Flags, error) {
 	if !isValidConfig(i) {
 		return nil, errors.New("invalid config")
 	}
-	f := &Flags{
-		values:  make(map[string]interface{}),
-		flagSet: flag.NewFlagSet(os.Args[0], flag.ExitOnError),
-	}
+	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	vStruct := reflect.ValueOf(i).Elem()
 	for i := 0; i < vStruct.NumField(); i++ {
 		field := vStruct.Field(i)
@@ -41,24 +39,25 @@ func New(i interface{}) (*Flags, error) {
 		tag := dField.Tag.Get(flagTag)
 		name := strcase.ToKebab(dField.Name)
 		desc := dField.Tag.Get(descTag)
-		if tag != "" {
-			name = tag
+		confTag := dField.Tag.Get(configTag)
+		if tag == "" {
+			tag = name
 		}
 
 		// skip private variables and disabled flags
-		if tag == "-" || !field.CanSet() {
+		if tag == "-" || confTag == "ignore" || !field.CanSet() {
 			continue
 		}
 
 		if isAlias(field) {
 			if field.Type().String() == "time.Duration" {
 				d := field.Interface().(time.Duration)
-				f.values[name] = f.flagSet.String(name, d.String(), desc)
+				flagSet.String(tag, d.String(), desc)
 				continue
 			}
 			if implementsMarshaler(field) {
 				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
-				f.values[name] = f.flagSet.String(name, string(b), desc)
+				flagSet.String(tag, string(b), desc)
 				continue
 			}
 		}
@@ -68,19 +67,19 @@ func New(i interface{}) (*Flags, error) {
 		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map, reflect.Slice:
 			continue
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-			f.values[name] = f.flagSet.Int(name, int(field.Int()), desc)
+			flagSet.Int(tag, int(field.Int()), desc)
 		case reflect.Int64:
-			f.values[name] = f.flagSet.Int64(name, field.Int(), desc)
+			flagSet.Int64(tag, field.Int(), desc)
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			f.values[name] = f.flagSet.Uint(name, uint(field.Uint()), desc)
+			flagSet.Uint(tag, uint(field.Uint()), desc)
 		case reflect.Uint64:
-			f.values[name] = f.flagSet.Uint64(name, field.Uint(), desc)
+			flagSet.Uint64(tag, field.Uint(), desc)
 		case reflect.String:
-			f.values[name] = f.flagSet.String(name, field.String(), desc)
+			flagSet.String(tag, field.String(), desc)
 		case reflect.Bool:
-			f.values[name] = f.flagSet.Bool(name, field.Bool(), desc)
+			flagSet.Bool(tag, field.Bool(), desc)
 		case reflect.Float32, reflect.Float64:
-			f.values[name] = f.flagSet.Float64(name, field.Float(), desc)
+			flagSet.Float64(tag, field.Float(), desc)
 		case reflect.Ptr:
 			// todo dereference and handle. use recursion
 			field = field.Elem()
@@ -92,16 +91,16 @@ func New(i interface{}) (*Flags, error) {
 				timeFmt := dField.Tag.Get(fmtTag)
 				timeFmt = getTimeFormat(timeFmt)
 				t := field.Interface().(time.Time)
-				f.values[name] = f.flagSet.String(name, t.Format(timeFmt), desc)
+				flagSet.String(tag, t.Format(timeFmt), desc)
 				continue
 			}
 			if implementsMarshaler(field) {
 				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
-				f.values[name] = f.flagSet.String(name, string(b), desc)
+				flagSet.String(tag, string(b), desc)
 			}
 		}
 	}
-	return f, nil
+	return &Flags{flagSet}, nil
 }
 
 // Parse the internal flags and the user defined flags
@@ -109,15 +108,41 @@ func (f *Flags) Parse() error {
 
 	// add other defined flags
 	flag.VisitAll(func(flg *flag.Flag) {
-		f.flagSet.Var(flg.Value, flg.Name, flg.Usage)
+		f.Var(flg.Value, flg.Name, flg.Usage)
 	})
 
-	return f.flagSet.Parse(os.Args[1:])
+	return f.FlagSet.Parse(os.Args[1:])
 }
 
 // Unmarshal the given struct from the flagSet
-func (f *Flags) Unmarshal(i interface{}) error {
-	return nil
+func (f Flags) Unmarshal(i interface{}) error {
+	if !isValidConfig(i) {
+		return errors.New("invalid config")
+	}
+
+	vStruct := reflect.ValueOf(i).Elem()
+	errs := appenderr.New()
+	for i := 0; i < vStruct.NumField(); i++ {
+		field := vStruct.Field(i)
+		dField := vStruct.Type().Field(i)
+		tag := dField.Tag.Get(flagTag)
+		name := strcase.ToKebab(dField.Name)
+		confTag := dField.Tag.Get(configTag)
+		if tag != "" {
+			name = tag
+		}
+
+		// skip private variables and disabled flags
+		if tag == "-" || confTag == "ignore" || !field.CanSet() {
+			continue
+		}
+		flg := f.FlagSet.Lookup(name)
+		if flg == nil {
+			return fmt.Errorf("matching flag not found %s", name)
+		}
+		errs.Add(setField(field, flg.Value.String()))
+	}
+	return errs.ErrOrNil()
 }
 
 // isValidConfig checks if a config can be properly read and written to.
