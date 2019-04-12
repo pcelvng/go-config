@@ -2,6 +2,8 @@ package flg
 
 import (
 	"errors"
+	"flag"
+	"os"
 	"testing"
 	"time"
 
@@ -24,14 +26,10 @@ func TestNew(t *testing.T) {
 			return nil, err
 		}
 		result := make(map[string]*tFlag)
-		for key := range f.values {
-			v := f.flagSet.Lookup(key)
-			if v == nil {
-				result[key] = nil
-				continue
-			}
-			result[key] = &tFlag{Usage: v.Usage, Def: v.DefValue}
-		}
+		f.FlagSet.VisitAll(func(flg *flag.Flag) {
+			key := flg.Name
+			result[key] = &tFlag{Usage: flg.Usage, Def: flg.DefValue}
+		})
 		return result, nil
 	}
 	cases := trial.Cases{
@@ -197,6 +195,41 @@ func TestNew(t *testing.T) {
 		},
 	}
 	trial.New(fn, cases).SubTest(t)
+}
+
+func TestUnmarshal(t *testing.T) {
+	type tConfig struct {
+		Int   int
+		Int8  int8
+		Int16 int16
+		Int32 int32
+		Int64 int64
+	}
+
+	type input struct {
+		config interface{}
+		args   []string
+	}
+	fn := func(args ...interface{}) (interface{}, error) {
+		in := args[0].(input)
+		os.Args = append([]string{"go-config"}, in.args...)
+		f, err := New(in.config)
+		if err != nil {
+			return nil, err
+		}
+		err = f.Unmarshal(in.config)
+
+		return in.config, err
+	}
+	cases := trial.Cases{
+		"ints": {
+			Input: input{
+				config: &tConfig{},
+			},
+			Expected: &tConfig{},
+		},
+	}
+	trial.New(fn, cases).Test(t)
 }
 
 type mAlias int
