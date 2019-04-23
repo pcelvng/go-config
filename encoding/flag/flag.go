@@ -81,7 +81,10 @@ func New(i interface{}) (*Flags, error) {
 		case reflect.Float32, reflect.Float64:
 			flagSet.Float64(tag, field.Float(), desc)
 		case reflect.Ptr:
-			// todo dereference and handle. use recursion
+			// if nil create a new instance so we can setup the flag
+			if field.IsNil() {
+				field = reflect.New(field.Type().Elem())
+			}
 			field = field.Elem()
 			goto switchStart // easiest solution, but do we want a goto statement
 		case reflect.Struct:

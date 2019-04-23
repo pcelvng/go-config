@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pcelvng/go-config/encoding/env"
+
 	flg "github.com/pcelvng/go-config/encoding/flag"
 	"github.com/pkg/errors"
 )
@@ -67,6 +69,13 @@ func (g *goConfig) Parse() error {
 	}
 
 	// load in lowest priority order: env -> file -> flag
+	if err := env.New().Unmarshal(g.config); err != nil {
+		return err
+	}
+	// todo file
+	if err := g.flags.Unmarshal(g.config); err != nil {
+		return err
+	}
 
 	return nil
 }

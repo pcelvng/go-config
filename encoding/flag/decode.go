@@ -1,6 +1,7 @@
 package flg
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -16,6 +17,20 @@ import (
 //
 // Does not support array literals.
 func setField(value reflect.Value, s string) error {
+	if isZero(value.Kind(), s) {
+		return nil
+	}
+	if isAlias(value) {
+		v := reflect.New(value.Type())
+		if implementsUnmarshaler(v) {
+			err := v.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(s))
+			if err != nil {
+				return err
+			}
+			value.Set(v.Elem())
+			return nil
+		}
+	}
 	switch value.Kind() {
 	case reflect.String:
 		value.SetString(s)
@@ -32,18 +47,23 @@ func setField(value reflect.Value, s string) error {
 		}
 	case reflect.Int64:
 		// check for time.Duration int64 special case.
-		//
-		// TODO: check if this still works when time package is vendored or there is a way to fake this.
+		// support int64 value and duration as a string
 		if value.Type().String() == "time.Duration" {
 			d, err := time.ParseDuration(s)
 			if err != nil {
-				return err
+				i, e2 := strconv.ParseInt(s, 10, 64)
+				if e2 != nil {
+					return err
+				}
+				d = time.Duration(i)
 			}
 
 			value.SetInt(int64(d))
+			return nil
 		}
+		// handle normal int64 with other ints
+		fallthrough
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-
 		i, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
 			return err
@@ -64,6 +84,9 @@ func setField(value reflect.Value, s string) error {
 		}
 		value.SetFloat(f)
 	case reflect.Ptr:
+		if isZero(value.Type().Elem().Kind(), s) {
+			return nil
+		}
 		// create non pointer type and recursively assign
 		z := reflect.New(value.Type().Elem())
 		err := setField(z.Elem(), s)
@@ -97,10 +120,32 @@ func setField(value reflect.Value, s string) error {
 
 	// structs as values are simply ignored. They don't map cleanly for environment variables.
 	case reflect.Struct:
+
+		v := reflect.New(value.Type())
+		if implementsUnmarshaler(v) {
+			err := v.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(s))
+			if err != nil {
+				return err
+			}
+		}
+		value.Set(v.Elem())
 		return nil
 	default:
 		return fmt.Errorf("unsupported type '%v'", value.Kind())
 	}
 
 	return nil
+}
+
+// isZero checks if the value s is the zero value of type t
+func isZero(t reflect.Kind, s string) bool {
+	switch t {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		fallthrough
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		fallthrough
+	case reflect.Float32, reflect.Float64:
+		return s == "0"
+	}
+	return s == ""
 }
