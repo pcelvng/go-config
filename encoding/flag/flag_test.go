@@ -139,11 +139,11 @@ func TestNew(t *testing.T) {
 		},
 		"text marshaler": {
 			Input: &struct {
-				MyStruct marshalStruct
-				IStruct  marshalStruct `flag:"-"`
+				MyStruct mStruct
+				IStruct  mStruct `flag:"-"`
 			}{
-				MyStruct: marshalStruct{value: "a"},
-				IStruct:  marshalStruct{value: "b"},
+				MyStruct: mStruct{value: "a"},
+				IStruct:  mStruct{value: "b"},
 			},
 			Expected: map[string]*tFlag{
 				"my-struct": {Def: "a"},
@@ -178,18 +178,22 @@ func TestNew(t *testing.T) {
 		},
 		"pointers": {
 			Input: &struct {
-				Int *int
-				//	Uint     *uint
+				Int      *int
+				Uint     *uint
+				Float    *float64
 				String   *string
-				MyStruct *marshalStruct
+				MyStruct *mStruct
 			}{
 				Int:      trial.IntP(1),
-				String:   trial.StringP("a"),
-				MyStruct: &marshalStruct{value: "c"},
+				Uint:     trial.UintP(2),
+				Float:    trial.Float64P(3.4),
+				MyStruct: &mStruct{value: "c"},
 			},
 			Expected: map[string]*tFlag{
 				"int":       {Def: "1"},
-				"string":    {Def: "a"},
+				"uint":      {Def: "2"},
+				"float":     {Def: "3.4"},
+				"string":    {Def: ""},
 				"my-struct": {Def: "c"},
 			},
 		},
@@ -198,12 +202,44 @@ func TestNew(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
+	type Aint int
+	type Astring string
+	type AFloat64 float64
+	type Auint uint
 	type tConfig struct {
+		Dura   time.Duration
+		Bool   bool
+		String string
+
 		Int   int
-		Int8  int8
-		Int16 int16
-		Int32 int32
-		Int64 int64
+		Int8  int8  `flag:"int8"`
+		Int16 int16 `flag:"int16"`
+		Int32 int32 `flag:"int32"`
+		Int64 int64 `flag:"int64"`
+
+		Uint   uint
+		Uint8  uint8  `flag:"uint8"`
+		Uint16 uint16 `flag:"uint16"`
+		Uint32 uint32 `flag:"uint32"`
+		Uint64 uint64 `flag:"uint64"`
+
+		Float32 float32 `flag:"float32"`
+		Float64 float64 `flag:"float64"`
+
+		IntP    *int     `flag:"intp"`
+		UintP   *uint    `flag:"uintp"`
+		StringP *string  `flag:"stringp"`
+		FloatP  *float64 `flag:"floatp"`
+
+		//alias'
+		Aint    Aint
+		Astring Astring
+		Number  mAlias
+	}
+
+	type tStruct struct {
+		MStruct mStruct  `flag:"mstruct"`
+		PStruct *mStruct `flag:"pstruct"`
 	}
 
 	type input struct {
@@ -212,24 +248,93 @@ func TestUnmarshal(t *testing.T) {
 	}
 	fn := func(args ...interface{}) (interface{}, error) {
 		in := args[0].(input)
+		if in.config == nil {
+			in.config = &tConfig{}
+		}
 		os.Args = append([]string{"go-config"}, in.args...)
 		f, err := New(in.config)
 		if err != nil {
 			return nil, err
 		}
+		f.Parse()
 		err = f.Unmarshal(in.config)
 
 		return in.config, err
 	}
 	cases := trial.Cases{
-		"ints": {
-			Input: input{
-				config: &tConfig{},
+		"time.duration": {
+			Input:    input{args: []string{"-dura=10s"}},
+			Expected: &tConfig{Dura: 10 * time.Second},
+		},
+		"time.duration (int)": {
+			Input:    input{args: []string{"-dura=1000"}},
+			Expected: &tConfig{Dura: 1000},
+		},
+		"int": {
+			Input:    input{args: []string{"-int=10", "-int8=8", "-int16=16", "-int32=32", "-int64=64"}},
+			Expected: &tConfig{Int: 10, Int8: 8, Int16: 16, Int32: 32, Int64: 64},
+		},
+		"uint": {
+			Input:    input{args: []string{"-uint=10", "-uint8=8", "-uint16=16", "-uint32=32", "-uint64=64"}},
+			Expected: &tConfig{Uint: 10, Uint8: 8, Uint16: 16, Uint32: 32, Uint64: 64},
+		},
+		"float": {
+			Input:    input{args: []string{"-float32=3.2", "-float64=6.4"}},
+			Expected: &tConfig{Float32: 3.2, Float64: 6.4},
+		},
+		"bool=true": {
+			Input:    input{args: []string{"-bool=true"}},
+			Expected: &tConfig{Bool: true},
+		},
+		"bool=false": {
+			Input:    input{args: []string{"-bool=false"}},
+			Expected: &tConfig{Bool: false},
+		},
+		"bool (default)": {
+			Input:    input{args: []string{}},
+			Expected: &tConfig{Bool: false},
+		},
+		"string": {
+			Input:    input{args: []string{"-string=hello"}},
+			Expected: &tConfig{String: "hello"},
+		},
+		"alias": {
+			Input: input{args: []string{"-aint=10", "-astring=abc", "-number=two"}},
+			Expected: &tConfig{
+				Aint:    10,
+				Astring: "abc",
+				Number:  2,
 			},
-			Expected: &tConfig{},
+		},
+		"pointers": {
+			Input:    input{args: []string{"-intp=3", "-uintp=4", "-floatp=5.6"}},
+			Expected: &tConfig{IntP: trial.IntP(3), UintP: trial.UintP(4), FloatP: trial.Float64P(5.6)},
+		},
+		"struct": {
+			Input: input{
+				config: &tStruct{},
+				args:   []string{"-mstruct=abc", "-pstruct=def"},
+			},
+			Expected: &tStruct{MStruct: mStruct{"abc"}, PStruct: &mStruct{"def"}},
+		},
+		"keep value for default": {
+			Input: input{
+				config: &tConfig{
+					Int:     1,
+					Uint:    2,
+					Float64: 3.4,
+					String:  "abc",
+				},
+			},
+			Expected: &tConfig{
+				Int:     1,
+				Uint:    2,
+				Float64: 3.4,
+				String:  "abc",
+			},
 		},
 	}
-	trial.New(fn, cases).Test(t)
+	trial.New(fn, cases).SubTest(t)
 }
 
 type mAlias int
@@ -253,15 +358,15 @@ func (i *mAlias) UnmarshalText(b []byte) error {
 	return errors.New("invalid number")
 }
 
-type marshalStruct struct {
+type mStruct struct {
 	value string
 }
 
-func (m marshalStruct) MarshalText() ([]byte, error) {
+func (m mStruct) MarshalText() ([]byte, error) {
 	return []byte(m.value), nil
 }
 
-func (m *marshalStruct) UnmarshalText(b []byte) error {
+func (m *mStruct) UnmarshalText(b []byte) error {
 	m.value = string(b)
 	return nil
 }
