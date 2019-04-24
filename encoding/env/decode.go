@@ -12,16 +12,16 @@ import (
 )
 
 var (
-	envTag = "env" // Expected env struct tag name.
+	envTag    = "env"    // Expected env struct tag name.
 	configTag = "config" // Expected general config values (only "ignore" supported ATM).
-	fmtTag = "fmt"
+	fmtTag    = "fmt"
 )
 
 func New() *Decoder {
 	return &Decoder{}
 }
 
-type Decoder struct {}
+type Decoder struct{}
 
 // Unmarshal implements the go-config/encoding.Unmarshaler interface.
 func (d *Decoder) Unmarshal(v interface{}) error {
@@ -40,11 +40,10 @@ func populate(prefix string, v interface{}) error {
 	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
 
-	// Must be pointing to a struct.
+		// Must be pointing to a struct.
 	} else if pv := reflect.Indirect(value); pv.Kind() != reflect.Struct {
 		return fmt.Errorf("'%v' must be a non-nil pointer struct", reflect.TypeOf(v))
 	}
-
 
 	// iterate through struct fields.
 	vStruct := reflect.ValueOf(v).Elem()
@@ -298,7 +297,6 @@ func setField(value reflect.Value, s string) error {
 		if err != nil {
 			return err
 		}
-
 
 		value.SetUint(i)
 	case reflect.Float32, reflect.Float64:
