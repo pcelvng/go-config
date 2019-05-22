@@ -3,9 +3,10 @@ package env
 import (
 	"bytes"
 	"fmt"
-	"github.com/iancoleman/strcase"
 	"os"
 	"reflect"
+
+	"github.com/iancoleman/strcase"
 )
 
 func NewEncoder() *Encoder {
