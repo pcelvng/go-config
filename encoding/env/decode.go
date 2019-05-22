@@ -254,7 +254,7 @@ func setTime(value reflect.Value, tv, timeFmt string) (string, error) {
 // Pointers and slices are recursively dealt with by following the pointer
 // or creating a generic slice of type value.
 //
-// All structs and that implement encoding.TextUnmarshaler are supported
+// All structs that implement encoding.TextUnmarshaler are supported
 //
 // Does not support array literals.
 func setField(value reflect.Value, s string) error {
