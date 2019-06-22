@@ -33,5 +33,4 @@ func Encode(w io.Writer, i interface{}, ext string) error {
 	default:
 		return fmt.Errorf("unsupported config extension %s", ext)
 	}
-	return nil
 }
