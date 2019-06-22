@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pcelvng/go-config/encoding/env"
 	"github.com/pcelvng/go-config/encoding/file"
 
@@ -29,6 +32,7 @@ type goConfig struct {
 
 	// flags
 	showVersion *bool
+	showConfig  *bool
 	version     string
 	description string
 	genConfig   *string
@@ -53,6 +57,7 @@ func New(c interface{}) *goConfig {
 // 2. flags (exception of config and version flag which are processed first)
 // 3. files (toml, yaml, json)
 func (g *goConfig) Parse() error {
+	g.showConfig = flag.Bool("show", false, "print out the value of the config")
 	f, err := flg.New(g.config)
 	if err != nil {
 		return errors.Wrap(err, "flag setup")
@@ -60,14 +65,42 @@ func (g *goConfig) Parse() error {
 	g.flags = f
 	if g.fileEnabled {
 		g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml)")
+		flag.StringVar(g.genConfig, "gen", "", "")
 		g.configPath = flag.String("c", "", "path for config file")
+		flag.StringVar(g.configPath, "config", "", "")
 	}
 	// prepend description to help usage
 	if g.description != "" {
 		f := g.flags
 		f.Usage = func() {
-			fmt.Fprint(f.Output(), g.description, "\n")
+			fmt.Fprint(os.Stderr, g.description, "\n")
+			w := new(bytes.Buffer)
+			f.SetOutput(w)
 			f.PrintDefaults()
+
+			//remove redundant outputs
+			output := w.String()
+			output = strings.Replace(output, "-g ", "-g,-gen ", 1)
+			output = strings.Replace(output, "-c ", "-c,-config ", 1)
+			output = strings.Replace(output, "-v\t", "-v,-version\n\t", 1)
+			skipLine := false
+			for _, s := range strings.Split(output, "\n") {
+				if skipLine {
+					skipLine = false
+					continue
+				}
+				if len(strings.TrimSpace(s)) == 0 {
+					continue
+				}
+				if strings.Contains(s, " -gen") || strings.Contains(s, " -config") {
+					skipLine = true
+					continue
+				}
+				if strings.Contains(s, " -version") {
+					continue
+				}
+				fmt.Fprint(os.Stderr, s, "\n")
+			}
 		}
 	}
 
@@ -102,6 +135,11 @@ func (g *goConfig) Parse() error {
 			return err
 		}
 	}
+
+	if *g.showConfig {
+		spew.Dump(g.config)
+		os.Exit(0)
+	}
 	return nil
 }
 
@@ -131,6 +169,7 @@ func ParseFlag(i interface{}) error {
 // this enables the -v (version) flag
 func (g *goConfig) Version(s string) *goConfig {
 	g.showVersion = flag.Bool("v", false, "show app version")
+	flag.BoolVar(g.showVersion, "version", false, "")
 	g.version = s
 	return g
 }
