@@ -64,7 +64,7 @@ func (g *goConfig) Parse() error {
 	}
 	g.flags = f
 	if g.fileEnabled {
-		g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml)")
+		g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml,env)")
 		flag.StringVar(g.genConfig, "gen", "", "")
 		g.configPath = flag.String("c", "", "path for config file")
 		flag.StringVar(g.configPath, "config", "", "")

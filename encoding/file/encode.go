@@ -16,7 +16,7 @@ func Encode(w io.Writer, i interface{}, ext string) error {
 	case "toml":
 		enc := toml.NewEncoder(w)
 		return enc.Encode(i)
-	case "yaml":
+	case "yaml", "yml":
 		b, err := yaml.Marshal(i)
 		if err != nil {
 			return err
