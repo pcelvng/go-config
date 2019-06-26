@@ -22,7 +22,7 @@ func Load(f string, i interface{}) error {
 			return err
 		}
 		return json.Unmarshal(b, i)
-	case "yaml":
+	case "yaml", "yml":
 		b, err := ioutil.ReadFile(f)
 		if err != nil {
 			return err
