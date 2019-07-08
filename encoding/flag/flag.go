@@ -89,7 +89,6 @@ func New(i interface{}) (*Flags, error) {
 			goto switchStart // easiest solution, but do we want a goto statement
 		case reflect.Struct:
 			// todo: Should we add a prefix for flags? structName-childVar or only
-			// support a struct if they implement a marshaler
 			if field.Type().String() == "time.Time" {
 				timeFmt := dField.Tag.Get(fmtTag)
 				timeFmt = getTimeFormat(timeFmt)
@@ -97,6 +96,7 @@ func New(i interface{}) (*Flags, error) {
 				flagSet.String(tag, t.Format(timeFmt), desc)
 				continue
 			}
+			// support a struct if they implement a marshaler
 			if implementsMarshaler(field) {
 				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
 				flagSet.String(tag, string(b), desc)

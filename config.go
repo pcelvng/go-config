@@ -1,11 +1,16 @@
 package config
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pcelvng/go-config/encoding/env"
+	"github.com/pcelvng/go-config/encoding/file"
 
 	flg "github.com/pcelvng/go-config/encoding/flag"
 	"github.com/pkg/errors"
@@ -27,9 +32,10 @@ type goConfig struct {
 
 	// flags
 	showVersion *bool
+	showConfig  *bool
 	version     string
 	description string
-	genConfig   *bool
+	genConfig   *string
 	configPath  *string
 
 	flags *flg.Flags
@@ -51,16 +57,53 @@ func New(c interface{}) *goConfig {
 // 2. flags (exception of config and version flag which are processed first)
 // 3. files (toml, yaml, json)
 func (g *goConfig) Parse() error {
+	g.showConfig = flag.Bool("show", false, "print out the value of the config")
 	f, err := flg.New(g.config)
 	if err != nil {
 		return errors.Wrap(err, "flag setup")
 	}
 	g.flags = f
 	if g.fileEnabled {
-		g.genConfig = flag.Bool("g", false, "generate config file")
+		g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml,env)")
+		flag.StringVar(g.genConfig, "gen", "", "")
 		g.configPath = flag.String("c", "", "path for config file")
+		flag.StringVar(g.configPath, "config", "", "")
 	}
-	// todo: prepend description to help usage
+	// prepend description to help usage
+	if g.description != "" {
+		f := g.flags
+		f.Usage = func() {
+			fmt.Fprint(os.Stderr, g.description, "\n")
+			w := new(bytes.Buffer)
+			f.SetOutput(w)
+			f.PrintDefaults()
+
+			//remove redundant outputs
+			output := w.String()
+			output = strings.Replace(output, "-g ", "-g,-gen ", 1)
+			output = strings.Replace(output, "-c ", "-c,-config ", 1)
+			output = strings.Replace(output, "-v\t", "-v,-version\n\t", 1)
+			skipLine := false
+			for _, s := range strings.Split(output, "\n") {
+				if skipLine {
+					skipLine = false
+					continue
+				}
+				if len(strings.TrimSpace(s)) == 0 {
+					continue
+				}
+				if strings.Contains(s, " -gen") || strings.Contains(s, " -config") {
+					skipLine = true
+					continue
+				}
+				if strings.Contains(s, " -version") {
+					continue
+				}
+				fmt.Fprint(os.Stderr, s, "\n")
+			}
+		}
+	}
+
 	g.flags.Parse()
 
 	if *g.showVersion {
@@ -68,15 +111,35 @@ func (g *goConfig) Parse() error {
 		os.Exit(0)
 	}
 
-	// load in lowest priority order: env -> file -> flag
-	if err := env.New().Unmarshal(g.config); err != nil {
-		return err
-	}
-	// todo file
-	if err := g.flags.Unmarshal(g.config); err != nil {
-		return err
+	if *g.genConfig != "" {
+		err := file.Encode(os.Stdout, g.config, *g.genConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
 	}
 
+	// load in lowest priority order: env -> file -> flag
+	if g.envEnabled {
+		if err := env.New().Unmarshal(g.config); err != nil {
+			return err
+		}
+	}
+	if g.fileEnabled && *g.configPath != "" {
+		if err := file.Load(*g.configPath, g.config); err != nil {
+			return err
+		}
+	}
+	if g.flagEnabled {
+		if err := g.flags.Unmarshal(g.config); err != nil {
+			return err
+		}
+	}
+
+	if *g.showConfig {
+		spew.Dump(g.config)
+		os.Exit(0)
+	}
 	return nil
 }
 
@@ -84,24 +147,29 @@ func (g *goConfig) Parse() error {
 // into the struct i.
 // this would be used if we only want to parse a file and don't
 // want to use any other features. This is more or less what multi-config does
-func ParseFile(i interface{}) error {
-	return nil
+func ParseFile(f string, i interface{}) error {
+	return file.Load(f, i)
 }
 
 // ParseEnv is similar to ParseFile, but only checks env vars
 func ParseEnv(i interface{}) error {
-	return nil
+	return env.New().Unmarshal(i)
 }
 
 // ParseFlag is similar to ParseFile, but only checks flags
 func ParseFlag(i interface{}) error {
-	return nil
+	f, err := flg.New(i)
+	if err != nil {
+		return err
+	}
+	return f.Parse()
 }
 
 // Version string that describes the app.
 // this enables the -v (version) flag
 func (g *goConfig) Version(s string) *goConfig {
 	g.showVersion = flag.Bool("v", false, "show app version")
+	flag.BoolVar(g.showVersion, "version", false, "")
 	g.version = s
 	return g
 }
