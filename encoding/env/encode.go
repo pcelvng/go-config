@@ -121,7 +121,7 @@ func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 				z := reflect.New(field.Type().Elem())
 				field.Set(z)
 			}
-2
+
 			// check if it's pointing to a struct
 			if reflect.Indirect(field).Kind() == reflect.Struct {
 				if reflect.Indirect(field).Type().String() == "time.Time" {
