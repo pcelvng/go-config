@@ -7,6 +7,8 @@ import (
 
 	"github.com/hydronica/toml"
 	"gopkg.in/yaml.v2"
+
+	"github.com/pcelvng/go-config/encoding/env"
 )
 
 // Encode a config to a file based on the ext passed in
@@ -18,6 +20,13 @@ func Encode(w io.Writer, i interface{}, ext string) error {
 		return enc.Encode(i)
 	case "yaml", "yml":
 		b, err := yaml.Marshal(i)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(b)
+		return err
+	case "env":
+		b, err := env.NewEncoder().Marshal(i)
 		if err != nil {
 			return err
 		}

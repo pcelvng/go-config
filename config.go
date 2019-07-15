@@ -9,16 +9,14 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/pcelvng/go-config/encoding/env"
 	"github.com/pcelvng/go-config/encoding/file"
 
-	flg "github.com/pcelvng/go-config/encoding/flag"
 	"github.com/pkg/errors"
-)
 
-type Hide struct {
-	HField string `hide`
-}
+	flg "github.com/pcelvng/go-config/encoding/flag"
+)
 
 // goConfig should probably be private so it can only be set through the new method.
 // this does mean that the variable can probably only be set with a ":=" which would prevent
@@ -41,6 +39,12 @@ type goConfig struct {
 	flags *flg.Flags
 }
 
+// Validator can be used as a way to validate the state of a config
+// after it has been loaded
+type Validator interface {
+	Validate() error
+}
+
 // New verifies that c is a valid - must be a struct pointer (maybe validation should happen in parse)
 // it goes through the struct and sets up corresponding flags to be used during parsing
 func New(c interface{}) *goConfig {
@@ -52,11 +56,20 @@ func New(c interface{}) *goConfig {
 	}
 }
 
-// Parse and set the configs in the following priority from lowest to highest
+// LoadOrDie is the same as Load except it exit if there is an error
+func (g *goConfig) LoadOrDie() {
+	err := g.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Load the configs in the following priority from lowest to highest
 // 1. environment variables
 // 2. flags (exception of config and version flag which are processed first)
 // 3. files (toml, yaml, json)
-func (g *goConfig) Parse() error {
+// After the configs are loaded validate the result if config implements validate interface
+func (g *goConfig) Load() error {
 	g.showConfig = flag.Bool("show", false, "print out the value of the config")
 	f, err := flg.New(g.config)
 	if err != nil {
@@ -140,24 +153,44 @@ func (g *goConfig) Parse() error {
 		spew.Dump(g.config)
 		os.Exit(0)
 	}
+
+	// validate if struct implements validator interface
+	if val, ok := g.config.(Validator); ok {
+		return val.Validate()
+	}
 	return nil
 }
 
-// ParseFile loads config date from a file (yaml, toml, json)
+// VarComment will add a variable comment/description to generated help messages
+func (g *goConfig) VarComment(field, comment string) *goConfig {
+	// todo: add map[field]comment to go through to add description
+	// how do we handle embedded structs that have the same Variable name as the parent
+	/*type dchild struct {
+		Name string
+	}
+	type dummy struct {
+		Name string
+		Child dchild
+	}*/
+
+	return g
+}
+
+// LoadFile loads config date from a file (yaml, toml, json)
 // into the struct i.
 // this would be used if we only want to parse a file and don't
 // want to use any other features. This is more or less what multi-config does
-func ParseFile(f string, i interface{}) error {
+func LoadFile(f string, i interface{}) error {
 	return file.Load(f, i)
 }
 
-// ParseEnv is similar to ParseFile, but only checks env vars
-func ParseEnv(i interface{}) error {
+// LoadEnv is similar to LoadFile, but only checks env vars
+func LoadEnv(i interface{}) error {
 	return env.New().Unmarshal(i)
 }
 
-// ParseFlag is similar to ParseFile, but only checks flags
-func ParseFlag(i interface{}) error {
+// LoadFlag is similar to LoadFile, but only checks flags
+func LoadFlag(i interface{}) error {
 	f, err := flg.New(i)
 	if err != nil {
 		return err
