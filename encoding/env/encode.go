@@ -3,8 +3,8 @@ package env
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"reflect"
+	"time"
 
 	"github.com/iancoleman/strcase"
 )
@@ -20,6 +20,7 @@ type Encoder struct {
 }
 
 func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
+	fmt.Fprint(e.buf, "#!/bin/sh\n\n")
 	return e.marshal("", v)
 }
 
@@ -80,110 +81,57 @@ func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 				name = prefix + "_" + name
 			}
 		}
-
+	typeCheck:
 		// if the value type is a struct or struct pointer then recurse.
 		switch field.Kind() {
-		// explicity ignored list of types.
+		// explicitly ignored list of types.
 		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map:
 			continue
+		case reflect.String:
+			e.write(name, field.String())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if field.Type().String() == "time.Duration" {
+				e.write(name, field.Interface().(time.Duration).String())
+				continue
+			}
+			e.write(name, field.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			e.write(name, field.Uint())
+		case reflect.Bool:
+			e.write(name, field.Bool())
+		case reflect.Float32, reflect.Float64:
+			e.write(name, field.Float())
+
 		case reflect.Struct:
 			// time.Time special struct case
 			if field.Type().String() == "time.Time" {
 				// check for 'fmt' tag.
 				timeFmt := vStruct.Type().Field(i).Tag.Get(fmtTag)
-
-				// get env value
-				envVal := os.Getenv(name)
-
-				// if no value found then don't set because it will
-				// overwrite possible defaults.
-				if envVal == "" {
-					continue
+				if timeFmt == "" {
+					timeFmt = time.RFC3339
 				}
-
-				timeFmt, err := setTime(field, envVal, timeFmt)
-				if err != nil {
-					return nil, fmt.Errorf("'%s' from '%s' cannot be set to %s (%s); using '%v' time format",
-						envVal, name, vStruct.Type().Field(i).Name, field.Type(), timeFmt)
-				}
-
+				e.write(name, field.Interface().(time.Time).Format(timeFmt))
 				continue
 			}
 
-			// get a pointer and recurse
-			err := populate(name, field.Addr().Interface())
-			if err != nil {
-				return nil, err
-			}
 		case reflect.Ptr:
 			// if it's a ptr to a struct then recurse otherwise fallthrough
 			if field.IsNil() {
-				z := reflect.New(field.Type().Elem())
-				field.Set(z)
-			}
-
-			// check if it's pointing to a struct
-			if reflect.Indirect(field).Kind() == reflect.Struct {
-				if reflect.Indirect(field).Type().String() == "time.Time" {
-					// check for 'fmt' tag.
-					//timeFmt := vStruct.Type().Field(i).Tag.Get(fmtTag)
-
-					// get env value
-					//envVal := os.Getenv(name)
-
-					// if no value found then don't set because it will
-					// overwrite possible defaults.
-					//if envVal == "" {
-					//	continue
-					//}
-					//
-					//timeFmt, err := setTime(reflect.Indirect(field), envVal, timeFmt)
-					//if err != nil {
-					//	return nil, fmt.Errorf("'%s' from '%s' cannot be set to %s (%s); using '%v' time format",
-					//		envVal, name, vStruct.Type().Field(i).Name, field.Type(), timeFmt)
-					//}
-
-					continue
-				}
-
-				// recurse on ptr struct
-				err := populate(name, field.Interface())
-				if err != nil {
-					return nil, err
-				}
-
 				continue
+				// should we set nil variables
 			}
 
-			// fallthrough since the underlying type is not
-			// a struct.
-			fallthrough
-		default:
-			// Validate "omitprefix" usage.
-			// Cannot be used on non-struct field types.
-			if tag == "omitprefix" {
-				return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
-			}
-
-			// get env value
-			//envVal := os.Getenv(name)
-
-			// if no value found then don't set because it will
-			// overwrite possible defaults.
-			//if envVal == "" {
-			//	continue
-			//}
-
-			// set value to field.
-			//if err := setField(field, envVal); err != nil {
-			//	return nil, fmt.Errorf("'%s' from '%s' cannot be set to %s (%s)", envVal, name, vStruct.Type().Field(i).Name, field.Type())
-			//}
-
-
+			field = field.Elem()
+			// dereference and reprocess
+			goto typeCheck
 		}
 	}
 
-	return nil, nil
+	return e.buf.Bytes(), nil
+}
+
+func (e *Encoder) write(field string, value interface{}) {
+	fmt.Fprintf(e.buf, "%s=%v\n", field, value)
 }
 
 // writeLine will write template info for a single env variable.
@@ -198,4 +146,3 @@ func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 func (e *Encoder) writeEnv(fTags map[string]string, fv reflect.Value) {
 
 }
-

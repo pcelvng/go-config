@@ -82,38 +82,38 @@ func (g *goConfig) Load() error {
 		g.configPath = flag.String("c", "", "path for config file")
 		flag.StringVar(g.configPath, "config", "", "")
 	}
-	// prepend description to help usage
-	if g.description != "" {
-		f := g.flags
-		f.Usage = func() {
-			fmt.Fprint(os.Stderr, g.description, "\n")
-			w := new(bytes.Buffer)
-			f.SetOutput(w)
-			f.PrintDefaults()
 
-			//remove redundant outputs
-			output := w.String()
-			output = strings.Replace(output, "-g ", "-g,-gen ", 1)
-			output = strings.Replace(output, "-c ", "-c,-config ", 1)
-			output = strings.Replace(output, "-v\t", "-v,-version\n\t", 1)
-			skipLine := false
-			for _, s := range strings.Split(output, "\n") {
-				if skipLine {
-					skipLine = false
-					continue
-				}
-				if len(strings.TrimSpace(s)) == 0 {
-					continue
-				}
-				if strings.Contains(s, " -gen") || strings.Contains(s, " -config") {
-					skipLine = true
-					continue
-				}
-				if strings.Contains(s, " -version") {
-					continue
-				}
-				fmt.Fprint(os.Stderr, s, "\n")
+	f.Usage = func() {
+		// prepend description to help usage
+		if g.description != "" {
+			fmt.Fprint(os.Stderr, g.description, "\n")
+		}
+		w := new(bytes.Buffer)
+		f.SetOutput(w)
+		f.PrintDefaults()
+
+		//remove redundant outputs
+		output := w.String()
+		output = strings.Replace(output, "-g ", "-g,-gen ", 1)
+		output = strings.Replace(output, "-c ", "-c,-config ", 1)
+		output = strings.Replace(output, "-v\t", "-v,-version\n\t", 1)
+		skipLine := false
+		for _, s := range strings.Split(output, "\n") {
+			if skipLine {
+				skipLine = false
+				continue
 			}
+			if len(strings.TrimSpace(s)) == 0 {
+				continue
+			}
+			if strings.Contains(s, " -gen") || strings.Contains(s, " -config") {
+				skipLine = true
+				continue
+			}
+			if strings.Contains(s, " -version") {
+				continue
+			}
+			fmt.Fprint(os.Stderr, s, "\n")
 		}
 	}
 
