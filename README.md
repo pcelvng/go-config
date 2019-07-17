@@ -109,7 +109,7 @@ You may provide a description.
 
 ```sh
 type options struct {
-    DBName `flag:"db-name,n" desc:"It's the db name.` // "db-name" or "n" can be supplied.
+    DBName `flag:"db-name,n" comment:"It's the db name.` // "db-name" or "n" can be supplied.
     // Note: flag name conflicts (two or more flags with the same name) will cause config to return an error message 
     // and terminate the program.
 }
@@ -139,9 +139,9 @@ func main() {
 }
 
 type options struct {
-    Host     string `flag:"db-host,h" desc:"The db host:port."`
-    Username string `flag:"db-un" desc:"The db username."`
-    Password string `flag:"db-pw" desc:"The db password."`
+    Host     string `flag:"db-host,h" comment:"The db host:port."`
+    Username string `flag:"db-un" comment:"The db username."`
+    Password string `flag:"db-pw" comment:"The db password."`
 }
 ```
 
@@ -301,9 +301,9 @@ func main() {
 }
 
 type options struct {
-    Host     string `flag:"db-host,h" desc:"The db host:port."`
-    Username string `flag:"db-un" desc:"The db username."`
-    Password string `flag:"db-pw" desc:"The db password."`
+    Host     string `flag:"db-host,h" comment:"The db host:port."`
+    Username string `flag:"db-un" comment:"The db username."`
+    Password string `flag:"db-pw" comment:"The db password."`
 }
 ``` 
 
@@ -316,15 +316,15 @@ type options struct {
 }
 ```
 
-For longer descriptions you may call the "Describe" package function.
+For longer descriptions you may call the "VarComment" package function.
 
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.Describe("Host", "once upon a time there was a very long description....")
-    config.Describe("DB.Username", "a really long custom description for the username field...")
+    config.VarComment("Host", "once upon a time there was a very long description....")
+    config.VarComment("DB.Username", "a really long custom description for the username field...")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
@@ -342,14 +342,14 @@ type DB struct {
 }
 ```
 
-If the specified describe field is not found then config returns an error.
+If the specified variable field is not found the config will return an error.
 
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.Describe("DoesNotExist", "once upon a time there was a very long description....")
+    config.VarComment("DoesNotExist", "once upon a time there was a very long description....")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
