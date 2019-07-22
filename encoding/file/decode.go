@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/hydronica/toml"
 	"gopkg.in/yaml.v2"
@@ -12,7 +13,7 @@ import (
 
 // Load config from file, type is determined by the file extension
 func Load(f string, i interface{}) error {
-	switch filepath.Ext(f) {
+	switch strings.Trim(filepath.Ext(f), ".") {
 	case "toml":
 		_, err := toml.DecodeFile(f, i)
 		return err
