@@ -333,6 +333,19 @@ func TestUnmarshal(t *testing.T) {
 				String:  "abc",
 			},
 		},
+		"ignore maps": {
+			Input: input{
+				config: &struct {
+					Value int
+					Map   map[string]string
+				}{},
+				args: []string{"-value=10"},
+			},
+			Expected: &struct {
+				Value int
+				Map   map[string]string
+			}{Value: 10},
+		},
 	}
 	trial.New(fn, cases).SubTest(t)
 }

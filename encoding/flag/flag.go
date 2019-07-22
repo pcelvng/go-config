@@ -141,7 +141,8 @@ func (f Flags) Unmarshal(i interface{}) error {
 		}
 		flg := f.FlagSet.Lookup(name)
 		if flg == nil {
-			return fmt.Errorf("matching flag not found %s", name)
+			// ignore all types without flags
+			continue
 		}
 		errs.Add(setField(field, flg.Value.String()))
 	}
