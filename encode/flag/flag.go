@@ -13,6 +13,7 @@ import (
 
 	"github.com/iancoleman/strcase"
 	"github.com/jbsmith7741/go-tools/appenderr"
+	"github.com/pcelvng/go-config/encode"
 )
 
 const (
@@ -105,7 +106,7 @@ func New(i interface{}) (*Flags, error) {
 			field = field.Elem()
 			goto switchStart // easiest solution, but do we want a goto statement
 		case reflect.Struct:
-			// todo: Should we add a prefix for flags? structName-childVar or only
+
 			if field.Type().String() == "time.Time" {
 				timeFmt := dField.Tag.Get(fmtTag)
 				timeFmt = getTimeFormat(timeFmt)
@@ -164,7 +165,7 @@ func (f Flags) Unmarshal(c interface{}) error {
 		if f.defaults[name] == flg.Value.String() {
 			continue
 		}
-		errs.Add(setField(field, flg.Value.String()))
+		errs.Add(encode.SetField(field, flg.Value.String(), dField))
 	}
 	return errs.ErrOrNil()
 }

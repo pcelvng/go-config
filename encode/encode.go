@@ -1,4 +1,11 @@
-package encoding
+package encode
+
+const (
+	flagTag   = "flag"
+	descTag   = "comment" // do we want a different tag for the flag vs toml?
+	fmtTag    = "fmt"
+	configTag = "config"
+)
 
 type Unmarshaler interface {
 	// Unmarshal expects a struct pointer and will read in

@@ -10,12 +10,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/pcelvng/go-config/encoding/env"
-	"github.com/pcelvng/go-config/encoding/file"
+	"github.com/pcelvng/go-config/encode/env"
+	"github.com/pcelvng/go-config/encode/file"
 
 	"github.com/pkg/errors"
 
-	flg "github.com/pcelvng/go-config/encoding/flag"
+	flg "github.com/pcelvng/go-config/encode/flag"
 )
 
 // goConfig should probably be private so it can only be set through the new method.

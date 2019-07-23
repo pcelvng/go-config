@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jbsmith7741/trial"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,8 +14,8 @@ type testStruct struct {
 	Value int
 	Uint  uint
 
-	Dura time.Duration
-	//Time   time.Time `fmt:"2006-01-02"`
+	Dura   time.Duration
+	Time   time.Time `fmt:"2006-01-02"`
 	Enable bool
 
 	Float32 float32 `flag:"float32"`
@@ -38,14 +39,14 @@ func TestGoConfig_Load(t *testing.T) {
 	os.Setenv("TIME", "2019-05-06")
 	os.Setenv("NAME", "env")
 
-	os.Args = []string{"go-config", "-c=test/test.toml", "-name=flag", "-enable=false", "-float32=55", "-dura=5s"}
+	os.Args = []string{"go-config", "-c=test/test.toml", "-time=2012-02-04", "-name=flag", "-enable=false", "-float32=55", "-dura=5s"}
 
 	if err := New(&c).Load(); err != nil {
 		t.Fatal(err)
 	}
 	exp := testStruct{
-		Name: "flag",
-		//		Time:    trial.TimeDay("2012-02-04"),
+		Name:    "flag",
+		Time:    trial.TimeDay("2012-02-04"),
 		Dura:    5 * time.Second,
 		Value:   10,
 		Uint:    2,
@@ -75,9 +76,9 @@ func TestLoadEnv(t *testing.T) {
 		t.Fatal("environment load error ", err)
 	}
 	exp := testStruct{
-		Name: "env",
-		Dura: 12 * time.Second,
-		//	Time:    trial.TimeDay("2019-05-06"),
+		Name:    "env",
+		Dura:    12 * time.Second,
+		Time:    trial.TimeDay("2019-05-06"),
 		Value:   8,
 		Uint:    2,
 		Float32: 12.3,
@@ -98,8 +99,8 @@ func TestLoadFile(t *testing.T) {
 		t.Fatal("toml file load error: ", err)
 	}
 	exp := testStruct{
-		Dura: time.Second,
-		//		Time:    trial.TimeDay("2010-08-10"),
+		Dura:    time.Second,
+		Time:    trial.TimeDay("2010-08-10"),
 		Value:   10,
 		Uint:    2,
 		Float32: 99.9,
@@ -122,8 +123,8 @@ func TestLoadFlag(t *testing.T) {
 		t.Fatal("flag load error ", err)
 	}
 	exp := testStruct{
-		Name: "flag",
-		//		Time:    trial.TimeDay("2012-02-04"),
+		Name:    "flag",
+		Time:    trial.TimeDay("2012-02-04"),
 		Dura:    5 * time.Second,
 		Value:   1,
 		Uint:    2,
