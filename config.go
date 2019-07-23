@@ -119,7 +119,7 @@ func (g *goConfig) Load() error {
 
 	g.flags.Parse()
 
-	if *g.showVersion {
+	if g.showVersion != nil && *g.showVersion {
 		fmt.Println(g.version)
 		os.Exit(0)
 	}

@@ -120,7 +120,6 @@ func setField(value reflect.Value, s string) error {
 
 	// structs as values are simply ignored. They don't map cleanly for environment variables.
 	case reflect.Struct:
-
 		v := reflect.New(value.Type())
 		if implementsUnmarshaler(v) {
 			err := v.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(s))
