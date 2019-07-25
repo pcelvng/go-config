@@ -118,7 +118,7 @@ func TestLoadFlag(t *testing.T) {
 		Float32: 12.3,
 	}
 
-	os.Args = []string{"go-config", "-name=flag", "-enable=false", "-float32=55", "-dura=5s"}
+	os.Args = []string{"go-config", "-name=flag", "-enable=false", "-float32=55", "-dura=5s", "-time=2012-02-04"}
 	if err := LoadFlag(&c); err != nil {
 		t.Fatal("flag load error ", err)
 	}
