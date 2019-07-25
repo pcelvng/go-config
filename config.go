@@ -117,7 +117,9 @@ func (g *goConfig) Load() error {
 		}
 	}
 
-	g.flags.Parse()
+	if err := g.flags.Parse(); err != nil {
+		return errors.Wrap(err, "flag parse")
+	}
 
 	if g.showVersion != nil && *g.showVersion {
 		fmt.Println(g.version)
@@ -195,7 +197,10 @@ func LoadFlag(i interface{}) error {
 	if err != nil {
 		return err
 	}
-	return f.Parse()
+	if err := f.Parse(); err != nil {
+		return err
+	}
+	return f.Unmarshal(i)
 }
 
 // Version string that describes the app.
