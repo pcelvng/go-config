@@ -15,6 +15,7 @@ func TestEncoder_Marshal(t *testing.T) {
 	fn := func(args ...interface{}) (interface{}, error) {
 		b, err := NewEncoder().Marshal(args[0])
 		s := strings.Replace(string(b), "#!/bin/sh\n\n", "", 1)
+		s = strings.Replace(s, "export ", "", -1)
 		return s, err
 	}
 	cases := trial.Cases{

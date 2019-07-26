@@ -131,18 +131,5 @@ func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 }
 
 func (e *Encoder) write(field string, value interface{}) {
-	fmt.Fprintf(e.buf, "%s=%v\n", field, value)
-}
-
-// writeLine will write template info for a single env variable.
-// Short desc are written inline with the variable; long descriptions
-// are written above with an additional newline above.
-//
-// Supported field tags (fTags)
-// - desc (field description)
-// - env (contains expected field name)
-// - fmt (time format - only applies to time.Time fields)
-// - req (if the field is required; true=required, false=not required)
-func (e *Encoder) writeEnv(fTags map[string]string, fv reflect.Value) {
-
+	fmt.Fprintf(e.buf, "export %s=%v\n", field, value)
 }
