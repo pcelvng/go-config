@@ -204,10 +204,9 @@ func TestNew(t *testing.T) {
 func TestUnmarshal(t *testing.T) {
 	type Aint int
 	type Astring string
-	type AFloat64 float64
-	type Auint uint
 	type tConfig struct {
 		Dura   time.Duration
+		Time   time.Time `fmt:"2006-01-02"`
 		Bool   bool
 		String string
 
@@ -269,6 +268,10 @@ func TestUnmarshal(t *testing.T) {
 		"time.duration (int)": {
 			Input:    input{args: []string{"-dura=1000"}},
 			Expected: &tConfig{Dura: 1000},
+		},
+		"time.Time": {
+			Input:    input{args: []string{"-time=2010-01-02"}},
+			Expected: &tConfig{Time: trial.TimeDay("2010-01-02")},
 		},
 		"int": {
 			Input:    input{args: []string{"-int=10", "-int8=8", "-int16=16", "-int32=32", "-int64=64"}},

@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/iancoleman/strcase"
 	"github.com/jbsmith7741/go-tools/appenderr"
+	"github.com/pcelvng/go-config/encode"
 )
 
 const (
@@ -23,11 +25,15 @@ const (
 
 type Flags struct {
 	*flag.FlagSet
+	defaults map[string]string
 }
 
 // New creates a custom flagset based on the struct i.
 //
 func New(i interface{}) (*Flags, error) {
+	flg := &Flags{
+		defaults: make(map[string]string),
+	}
 	if !isValidConfig(i) {
 		return nil, errors.New("invalid config")
 	}
@@ -67,19 +73,31 @@ func New(i interface{}) (*Flags, error) {
 		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map, reflect.Slice:
 			continue
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-			flagSet.Int(tag, int(field.Int()), desc)
+			i := int(field.Int())
+			flagSet.Int(tag, i, desc)
+			flg.defaults[tag] = strconv.Itoa(i)
 		case reflect.Int64:
 			flagSet.Int64(tag, field.Int(), desc)
+			flg.defaults[tag] = strconv.FormatInt(field.Int(), 10)
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 			flagSet.Uint(tag, uint(field.Uint()), desc)
+			flg.defaults[tag] = strconv.FormatUint(field.Uint(), 10)
 		case reflect.Uint64:
 			flagSet.Uint64(tag, field.Uint(), desc)
+			flg.defaults[tag] = strconv.FormatUint(field.Uint(), 10)
 		case reflect.String:
 			flagSet.String(tag, field.String(), desc)
+			flg.defaults[tag] = field.String()
 		case reflect.Bool:
 			flagSet.Bool(tag, field.Bool(), desc)
+			if field.Bool() {
+				flg.defaults[tag] = "true"
+			} else {
+				flg.defaults[tag] = "false"
+			}
 		case reflect.Float32, reflect.Float64:
 			flagSet.Float64(tag, field.Float(), desc)
+			flg.defaults[tag] = strconv.FormatFloat(field.Float(), 'f', -1, 64)
 		case reflect.Ptr:
 			// if nil create a new instance so we can setup the flag
 			if field.IsNil() {
@@ -88,22 +106,25 @@ func New(i interface{}) (*Flags, error) {
 			field = field.Elem()
 			goto switchStart // easiest solution, but do we want a goto statement
 		case reflect.Struct:
-			// todo: Should we add a prefix for flags? structName-childVar or only
+
 			if field.Type().String() == "time.Time" {
 				timeFmt := dField.Tag.Get(fmtTag)
 				timeFmt = getTimeFormat(timeFmt)
 				t := field.Interface().(time.Time)
 				flagSet.String(tag, t.Format(timeFmt), desc)
+				flg.defaults[tag] = t.Format(timeFmt)
 				continue
 			}
 			// support a struct if they implement a marshaler
 			if implementsMarshaler(field) {
 				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
 				flagSet.String(tag, string(b), desc)
+				flg.defaults[tag] = string(b)
 			}
 		}
 	}
-	return &Flags{flagSet}, nil
+	flg.FlagSet = flagSet
+	return flg, nil
 }
 
 // Parse the internal flags and the user defined flags
@@ -118,33 +139,33 @@ func (f *Flags) Parse() error {
 }
 
 // Unmarshal the given struct from the flagSet
-func (f Flags) Unmarshal(i interface{}) error {
-	if !isValidConfig(i) {
+func (f Flags) Unmarshal(c interface{}) error {
+	if !isValidConfig(c) {
 		return errors.New("invalid config")
 	}
 
-	vStruct := reflect.ValueOf(i).Elem()
+	vStruct := reflect.ValueOf(c).Elem()
 	errs := appenderr.New()
 	for i := 0; i < vStruct.NumField(); i++ {
 		field := vStruct.Field(i)
 		dField := vStruct.Type().Field(i)
 		tag := dField.Tag.Get(flagTag)
 		name := strcase.ToKebab(dField.Name)
-		confTag := dField.Tag.Get(configTag)
+		//confTag := dField.Tag.Get(configTag)
 		if tag != "" {
 			name = tag
 		}
 
-		// skip private variables and disabled flags
-		if tag == "-" || confTag == "ignore" || !field.CanSet() {
-			continue
-		}
 		flg := f.FlagSet.Lookup(name)
 		if flg == nil {
 			// ignore all types without flags
 			continue
 		}
-		errs.Add(setField(field, flg.Value.String()))
+		// skip flags set to default
+		if f.defaults[name] == flg.Value.String() {
+			continue
+		}
+		errs.Add(encode.SetField(field, flg.Value.String(), dField))
 	}
 	return errs.ErrOrNil()
 }

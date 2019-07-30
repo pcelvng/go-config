@@ -10,12 +10,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/pcelvng/go-config/encoding/env"
-	"github.com/pcelvng/go-config/encoding/file"
+	"github.com/pcelvng/go-config/encode/env"
+	"github.com/pcelvng/go-config/encode/file"
 
 	"github.com/pkg/errors"
 
-	flg "github.com/pcelvng/go-config/encoding/flag"
+	flg "github.com/pcelvng/go-config/encode/flag"
 )
 
 // goConfig should probably be private so it can only be set through the new method.
@@ -117,9 +117,11 @@ func (g *goConfig) Load() error {
 		}
 	}
 
-	g.flags.Parse()
+	if err := g.flags.Parse(); err != nil {
+		return errors.Wrap(err, "flag parse")
+	}
 
-	if *g.showVersion {
+	if g.showVersion != nil && *g.showVersion {
 		fmt.Println(g.version)
 		os.Exit(0)
 	}
@@ -195,7 +197,10 @@ func LoadFlag(i interface{}) error {
 	if err != nil {
 		return err
 	}
-	return f.Parse()
+	if err := f.Parse(); err != nil {
+		return err
+	}
+	return f.Unmarshal(i)
 }
 
 // Version string that describes the app.

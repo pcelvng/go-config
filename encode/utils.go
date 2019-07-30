@@ -1,4 +1,4 @@
-package flg
+package encode
 
 import (
 	"encoding"
@@ -16,7 +16,7 @@ import (
 // All structs and that implement encoding.TextUnmarshaler are supported
 //
 // Does not support array literals.
-func setField(value reflect.Value, s string) error {
+func SetField(value reflect.Value, s string, sField reflect.StructField) error {
 	if isZero(value.Kind(), s) {
 		return nil
 	}
@@ -89,7 +89,7 @@ func setField(value reflect.Value, s string) error {
 		}
 		// create non pointer type and recursively assign
 		z := reflect.New(value.Type().Elem())
-		err := setField(z.Elem(), s)
+		err := SetField(z.Elem(), s, sField)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func setField(value reflect.Value, s string) error {
 
 			// each item must be the correct type.
 			baseValue := reflect.New(baseType).Elem()
-			err := setField(baseValue, v)
+			err := SetField(baseValue, v, sField)
 			if err != nil {
 				return err
 			}
@@ -120,8 +120,13 @@ func setField(value reflect.Value, s string) error {
 
 	// structs as values are simply ignored. They don't map cleanly for environment variables.
 	case reflect.Struct:
-
 		v := reflect.New(value.Type())
+		if value.Type().String() == "time.Time" {
+			timeFmt := sField.Tag.Get(fmtTag)
+
+			_, err := SetTime(value, s, timeFmt)
+			return err
+		}
 		if implementsUnmarshaler(v) {
 			err := v.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(s))
 			if err != nil {
@@ -148,4 +153,70 @@ func isZero(t reflect.Kind, s string) bool {
 		return s == "0"
 	}
 	return s == ""
+}
+
+// setTime expects value to be time.Time.
+//
+// tFmt can be any time package handy time format like "RFC3339Nano".
+// Default format is time.RFC3339.
+func SetTime(value reflect.Value, tv, timeFmt string) (string, error) {
+	if timeFmt == "" {
+		timeFmt = time.RFC3339 // default format
+	}
+
+	// check for standard time formats
+	switch timeFmt {
+	case "ANSIC":
+		timeFmt = time.ANSIC
+	case "UnixDate":
+		timeFmt = time.UnixDate
+	case "RubyDate":
+		timeFmt = time.RubyDate
+	case "RFC822":
+		timeFmt = time.RFC822
+	case "RFC822Z":
+		timeFmt = time.RFC822Z
+	case "RFC850":
+		timeFmt = time.RFC850
+	case "RFC1123":
+		timeFmt = time.RFC1123
+	case "RFC1123Z":
+		timeFmt = time.RFC1123Z
+	case "RFC3339":
+		timeFmt = time.RFC3339
+	case "RFC3339Nano":
+		timeFmt = time.RFC3339Nano
+	case "Kitchen":
+		timeFmt = time.Kitchen
+	case "Stamp":
+		timeFmt = time.Stamp
+	case "StampMilli":
+		timeFmt = time.StampMilli
+	case "StampMicro":
+		timeFmt = time.StampMicro
+	case "StampNano":
+		timeFmt = time.StampNano
+	}
+
+	t, err := time.Parse(timeFmt, tv)
+	if err != nil {
+		return timeFmt, err
+	}
+
+	tStruct := reflect.ValueOf(t)
+	value.Set(tStruct)
+
+	return timeFmt, nil
+}
+
+func implementsUnmarshaler(v reflect.Value) bool {
+	return v.Type().Implements(reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem())
+}
+
+func isAlias(v reflect.Value) bool {
+	if v.Kind() == reflect.Struct || v.Kind() == reflect.Ptr {
+		return false
+	}
+	s := fmt.Sprint(v.Type())
+	return strings.Contains(s, ".")
 }

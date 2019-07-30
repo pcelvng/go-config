@@ -1,3 +1,5 @@
 name = "toml"
 value = 10
 enable = true
+time = "2010-08-10T00:00:00Z"
+float32 = 99.9

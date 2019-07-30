@@ -33,3 +33,5 @@ func Load(f string, i interface{}) error {
 		return fmt.Errorf("unknown file type %s", filepath.Ext(f))
 	}
 }
+
+// todo: issue how to properly handle custom formats for time.Time 'fmt' in json, yaml and toml
