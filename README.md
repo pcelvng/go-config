@@ -8,7 +8,7 @@ configuration formats.
 go-config also supports using multiple configuration format options at the same time. For example, you can provide 
 flags and environment variables.
 
-Because creating configuration files is tedious, go-config can generate configration files for you. This helps remove
+Because creating configuration files is tedious, go-config can generate configuration files for you. This helps remove
 human error from configuration files and makes configuration files easier to maintain since you only need to make changes
 in a single location.
 
