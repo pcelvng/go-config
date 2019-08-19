@@ -11,8 +11,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pcelvng/go-config/encode/env"
 	"github.com/pcelvng/go-config/encode/file"
-	"github.com/pkg/errors"
 	flg "github.com/pcelvng/go-config/encode/flag"
+	"github.com/pkg/errors"
 )
 
 // goConfig should probably be private so it can only be set through the new method.
@@ -30,7 +30,7 @@ type goConfig struct {
 
 	// special flags
 	showVersion *bool
-	appName string // self proclaimed app name.
+	appName     string // self proclaimed app name.
 	showConfig  *bool
 	version     string
 	description string
@@ -224,7 +224,11 @@ func (g *goConfig) Version(s string) *goConfig {
 	g.showVersion = flag.Bool("v", false, "show app version")
 	flag.BoolVar(g.showVersion, "version", false, "")
 	g.version = s
-	return g
+	return defaultCfg.Version(s)
+}
+
+func Version(s string) *goConfig {
+	return defaultCfg.Version(s)
 }
 
 // Description for the app, this message is prepended to the help flag
@@ -233,10 +237,18 @@ func (g *goConfig) Description(s string) *goConfig {
 	return g
 }
 
+func Description(s string) *goConfig {
+	return defaultCfg.Description(s)
+}
+
 // DisableEnv tells goConfig not to use environment variables
 func (g *goConfig) DisableEnv() *goConfig {
 	g.envEnabled = false
 	return g
+}
+
+func DisableEnv() *goConfig {
+	return defaultCfg.DisableEnv()
 }
 
 // DisableFiles removes the c (config) flag used for defining a config file
@@ -247,12 +259,20 @@ func (g *goConfig) DisableFiles() *goConfig {
 	return g
 }
 
+func DisableFiles() *goConfig {
+	return defaultCfg.DisableFiles()
+}
+
 // DisableTOML will prevent files with a '.toml' extension
 // from being parsed and will remove 'toml' type options
 // from the help menu.
 func (g *goConfig) DisableTOML() *goConfig {
 	g.tomlEnabled = false
 	return g
+}
+
+func DisableTOML() *goConfig {
+	return defaultCfg.DisableTOML()
 }
 
 // DisableYAML will prevent files with a '.yaml', '.yml' extension
@@ -263,6 +283,10 @@ func (g *goConfig) DisableYAML() *goConfig {
 	return g
 }
 
+func DisableYAML() *goConfig {
+	return defaultCfg.DisableYAML()
+}
+
 // DisableJSON will prevent files with a '.json' extension
 // from being parsed and will remove 'json' type options
 // from the help menu.
@@ -271,11 +295,19 @@ func (g *goConfig) DisableJSON() *goConfig {
 	return g
 }
 
+func DisableJSON() *goConfig {
+	return defaultCfg.DisableJSON()
+}
+
 // DisableFlag prevents setting variables from flags.
 // Non variable flags should still work [c (config), v (version), g (gen)]
 func (g *goConfig) DisableFlags() *goConfig {
 	g.flagEnabled = false
 	return g
+}
+
+func DisableFlags() *goConfig {
+	return defaultCfg.DisableFlags()
 }
 
 var defaultCfg = New(nil)
