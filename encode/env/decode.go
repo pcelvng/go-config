@@ -306,7 +306,7 @@ func setField(value reflect.Value, s string) error {
 		}
 		value.SetFloat(f)
 	case reflect.Ptr:
-		// create non pointer type and recursively assign
+		// Create non-pointer type and recursively assign.
 		z := reflect.New(value.Type().Elem())
 		err := setField(z.Elem(), s)
 		if err != nil {

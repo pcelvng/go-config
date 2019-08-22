@@ -94,21 +94,34 @@ func TestEncoder_Marshal(t *testing.T) {
 			},
 			Expected: "TIME=2019-01-02T00:00:00Z\nC_TIME=2019-01-02\nWAIT_TIME=1h0m0s\n",
 		},
-		//"pointers": {
-		//	Input: &struct {
-		//		Int      *int
-		//		Uint     *uint
-		//		Float    *float64
-		//		String   *string
-		//		MyStruct *mStruct
-		//	}{
-		//		Int:      trial.IntP(1),
-		//		Uint:     trial.UintP(2),
-		//		Float:    trial.Float64P(3.4),
-		//		MyStruct: &mStruct{value: "c"},
-		//	},
-		//	Expected: "INT=1\nUINT=2\nFLOAT=3.4\n",
-		//},
+		"pointers": {
+			Input: &struct {
+				Int      *int
+				Uint     *uint
+				Float    *float64
+				String   *string
+				MyStruct *mStruct
+			}{
+				Int:      trial.IntP(1),
+				Uint:     trial.UintP(2),
+				Float:    trial.Float64P(3.4),
+				String:   trial.StringP("5"),
+				MyStruct: &mStruct{value: "c"},
+			},
+			Expected: "INT=1\nUINT=2\nFLOAT=3.4\nSTRING=5\n",
+		},
+		"empty pointers": {
+			Input: &struct {
+				Int      *int
+				Uint     *uint
+				Float    *float64
+				String   *string
+				MyStruct *mStruct
+			}{
+				// Empty for nil values.
+			},
+			Expected: "INT=0\nUINT=0\nFLOAT=0\nSTRING=\n",
+		},
 	}
 	trial.New(fn, cases).Test(t)
 }

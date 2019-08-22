@@ -190,9 +190,16 @@ func (e *Encoder) writeFieldLine(name string, field reflect.Value) error {
 	case reflect.Float32, reflect.Float64:
 		e.doWrite(name, field.Float())
 	case reflect.Ptr:
-		// create non pointer type and recursively assign
-		z := reflect.New(field.Type().Elem())
-		err := e.writeFieldLine(name, z.Elem())
+		if field.IsNil() {
+			// Create non-pointer type and recursively assign.
+			z := reflect.New(field.Type().Elem())
+			err := e.writeFieldLine(name, z.Elem())
+			if err != nil {
+				return err
+			}
+		}
+
+		err := e.writeFieldLine(name, reflect.Indirect(field))
 		if err != nil {
 			return err
 		}
