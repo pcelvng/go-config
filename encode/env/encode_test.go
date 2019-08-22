@@ -80,7 +80,7 @@ func TestEncoder_Marshal(t *testing.T) {
 				Int:  10,
 				Name: "Bob",
 			},
-			Expected: "COUNT=10\n",
+			Expected: "COUNT=10 # number of people in a room\n",
 		},
 		"time": {
 			Input: &struct {

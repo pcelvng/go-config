@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	envTag    = "env"    // Expected env struct tag name.
-	configTag = "config" // Expected general config values (only "ignore" supported ATM).
-	fmtTag    = "fmt"
+	envTag     = "env"    // Expected env struct tag name.
+	configTag  = "config" // Expected general config values (only "ignore" supported ATM).
+	fmtTag     = "fmt"
+	commentTag = "comment" // Only used for encoding.
 )
 
 func New() *Decoder {
