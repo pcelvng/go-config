@@ -79,6 +79,8 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 			name = tag
 		}
 
+		comment := vStruct.Type().Field(i).Tag.Get(commentTag) // "comment" tag value
+
 		// prepend prefix
 		if prefix != "" {
 			// An empty name takes on the prefix so that
@@ -106,7 +108,7 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 					timeFmt = time.RFC3339
 				}
 
-				e.doWrite(name, field.Interface().(time.Time).Format(timeFmt))
+				e.doWrite(name, comment, field.Interface().(time.Time).Format(timeFmt))
 				continue
 			}
 
@@ -133,7 +135,7 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 						timeFmt = time.RFC3339
 					}
 
-					e.doWrite(name, field.Interface().(time.Time).Format(timeFmt))
+					e.doWrite(name, comment, field.Interface().(time.Time).Format(timeFmt))
 					continue
 				}
 
@@ -156,7 +158,7 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 				return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
 			}
 
-			e.writeFieldLine(name, field)
+			e.writeFieldLine(name, comment, field)
 		}
 	}
 
@@ -170,36 +172,36 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 // All structs that implement encoding.TextUnmarshaler are supported
 //
 // Does not support array literals.
-func (e *Encoder) writeFieldLine(name string, field reflect.Value) error {
+func (e *Encoder) writeFieldLine(name, comment string, field reflect.Value) error {
 	// TODO: handle formatting of zero values.
 	switch field.Kind() {
 	case reflect.String:
-		e.doWrite(name, field.String())
+		e.doWrite(name, comment, field.String())
 	case reflect.Bool:
-		e.doWrite(name, field.Bool())
+		e.doWrite(name, comment, field.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		// Support case of int64 as a time.Duration.
 		if field.Type().String() == "time.Duration" {
-			e.doWrite(name, field.Interface().(time.Duration).String())
+			e.doWrite(name, comment, field.Interface().(time.Duration).String())
 			return nil
 		}
 
-		e.doWrite(name, field.Int())
+		e.doWrite(name, comment, field.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		e.doWrite(name, field.Uint())
+		e.doWrite(name, comment, field.Uint())
 	case reflect.Float32, reflect.Float64:
-		e.doWrite(name, field.Float())
+		e.doWrite(name, comment, field.Float())
 	case reflect.Ptr:
 		if field.IsNil() {
 			// Create non-pointer type and recursively assign.
 			z := reflect.New(field.Type().Elem())
-			err := e.writeFieldLine(name, z.Elem())
+			err := e.writeFieldLine(name, comment, z.Elem())
 			if err != nil {
 				return err
 			}
 		}
 
-		err := e.writeFieldLine(name, reflect.Indirect(field))
+		err := e.writeFieldLine(name, comment, reflect.Indirect(field))
 		if err != nil {
 			return err
 		}
@@ -210,7 +212,7 @@ func (e *Encoder) writeFieldLine(name string, field reflect.Value) error {
 		// Handle empty slice - no defaults.
 		if field.Len() == 0 {
 			// TODO: make a note of underlying type?
-			e.doWrite(name, "[]")
+			e.doWrite(name, comment, "[]")
 		}
 
 		// TODO: consider using native bash arrays. https://www.tldp.org/LDP/Bash-Beginners-Guide/html/sect_10_02.html
@@ -245,7 +247,7 @@ func (e *Encoder) writeFieldLine(name string, field reflect.Value) error {
 			}
 		}
 
-		e.doWrite(name, outValue+"]")
+		e.doWrite(name, comment, outValue+"]")
 
 	// structs as values are simply ignored. They don't map cleanly for environment variables.
 	case reflect.Struct:
@@ -257,6 +259,9 @@ func (e *Encoder) writeFieldLine(name string, field reflect.Value) error {
 	return nil
 }
 
-func (e *Encoder) doWrite(field string, value interface{}) {
-	fmt.Fprintf(e.buf, "export %s=%v\n", field, value)
+func (e *Encoder) doWrite(field, comment string, value interface{}) {
+	if comment != "" {
+		comment = " # " + comment
+	}
+	fmt.Fprintf(e.buf, "export %s=%v%v\n", field, value, comment)
 }
