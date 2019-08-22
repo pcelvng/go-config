@@ -272,7 +272,7 @@ func setField(value reflect.Value, s string) error {
 			// something is amiss.
 			return fmt.Errorf("cannot assign '%v' to bool type", s)
 		}
-	case reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		// check for time.Duration int64 special case.
 		//
 		// TODO: check if this still works when time package is vendored or there is a way to fake this.
@@ -283,8 +283,8 @@ func setField(value reflect.Value, s string) error {
 			}
 
 			value.SetInt(int64(d))
+			return nil
 		}
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
 
 		i, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
@@ -306,7 +306,7 @@ func setField(value reflect.Value, s string) error {
 		}
 		value.SetFloat(f)
 	case reflect.Ptr:
-		// create non pointer type and recursively assign
+		// Create non-pointer type and recursively assign.
 		z := reflect.New(value.Type().Elem())
 		err := setField(z.Elem(), s)
 		if err != nil {
@@ -315,6 +315,8 @@ func setField(value reflect.Value, s string) error {
 
 		value.Set(z)
 	case reflect.Slice:
+		// TODO: underlying slice type must not be complex.
+		// TODO: consider supporting native bash arrays.
 		// create a slice and recursively assign the elements
 		baseType := reflect.TypeOf(value.Interface()).Elem()
 		s = strings.Trim(s, "[]") // trim brackets for bracket support.

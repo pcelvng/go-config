@@ -7,7 +7,6 @@ import (
 
 	"github.com/hydronica/toml"
 	"gopkg.in/yaml.v2"
-
 	"github.com/pcelvng/go-config/encode/env"
 )
 
