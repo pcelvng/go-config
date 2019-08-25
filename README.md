@@ -18,10 +18,10 @@ All configuration options are controlled via struct tags. A 'struct' is the prin
 
 Get the library:
 ```sh
-> go get github.com/pcelvng/go-config
+> go get -u github.com/pcelvng/go-config
 ```
 
-Use in your application:
+General use:
 ```sh
 package main
 
@@ -36,7 +36,7 @@ func main() {
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
@@ -90,32 +90,38 @@ type DBCreds struct {
 }
 ```
 
-You may provide flag aliases (for shorter referencing)
+```sh
+> ./myapp -db.un=myusername -db-pw=mypassword
+```
+
+
+You may provide flag name aliases.
 
 ```sh
 type options struct {
+    // Note: flag name conflicts will cause config to return an error message 
+    // and terminate the program.
     DBName `flag:"db-name,n"` // "db-name" or "n" can be supplied.
-    // Note: flag name conflicts (two or more flags with the same name) will cause config to return an error message 
-    // and terminate the program.
 }
 ```
 
 ```sh
-> myapp -db.un=myusername -db-pw=mypassword
+> ./myapp -db-name=mydbname 
+
+# using alias
+> ./myapp -n=mydbname 
 ```
 
 
-You may provide a description.
+You may provide a description with the 'help' tag.
 
 ```sh
 type options struct {
-    DBName `flag:"db-name,n" comment:"It's the db name.` // "db-name" or "n" can be supplied.
-    // Note: flag name conflicts (two or more flags with the same name) will cause config to return an error message 
-    // and terminate the program.
+    DBName `flag:"db-name,n" help:"Database name.`
 }
 ```
 
-You may ignore flag struct fields.
+You may ignore flag struct fields using a '-' value.
 
 ```sh
 type options struct {
@@ -129,101 +135,105 @@ initialization.
 ```sh
 func main() {
     appCfg := options{
-        Host: "localhost:5432", // default host value
+        Host: "localhost:5432", // Default host value.
     }
+
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
 type options struct {
-    Host     string `flag:"db-host,h" comment:"The db host:port."`
-    Username string `flag:"db-un" comment:"The db username."`
-    Password string `flag:"db-pw" comment:"The db password."`
+    Host     string `flag:"db-host,host" help:"The db host:port."`
+    Username string `flag:"db-un" help:"The db username."`
+    Password string `flag:"db-pw" help:"The db password."`
 }
 ```
 
 You may ask for help.
 
 ```sh
-> myapp -h # or --help
-myapp
+> ./myapp -h # or --help
 
-Available Flags:
--config,-c      The config file path (if using one). File extension must be one of "toml,yaml,yml,json,ini"
--gen,-g         Generate a config template file. Accepts one of "toml,yaml,yml,json,env", sends the template 
-                to stdout and exits. Default values are pre-populated in a template. The 'env' template generates
-                the environment values with a shebang for execution in a shell script file.
--show           Will show all config values and exit the application.
+-config,-c      The config file path (if using one). File extension must be one of "toml", "yaml", "yml", "json".
+-gen,-g         Generate config template. One of "toml", "yaml", "json", "env".
+-show           Show loaded config values and exit.
 
--db-host,-h     The db host:port. (default: localhost:5432)
--db-name,-n     It's the db name.
+-db-host,host   The db host:port. (default: localhost:5432)
 -db-pw
 -db-un
 
 ```
 
-You may disable flags entirely. Note, general config flags such as the '-gen' flag are not turned off and will still
-be shown on the help screen.
-
-```sh
-func main() {
-    appCfg := options{
-        Host: "localhost:5432", // default host value
-    }
-    config.DisableFlags()
-    err := config.Load(&appCfg)
-    if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
-    }
-}
-
-type options struct {
-    Host    string
-    DB      DB
-}
-
-type DB struct {
-    Username string 
-}
-```
+You may disable flags entirely by taking advantage of the "With" method described below
 
 ## Environment Variables
 
-The default naming of environment variables is to make the field name uppercase separated by underscores.
+The default environment naming converts the field name to screaming snake case. Embedded struct fields
+are namespaced using the struct field name.
 
 ```sh
 type options struct {
-    Host    string             // Defaults to 'HOST'.
-    DB      DB      `env:"DB"` // Acts as a namespace for structs.
+    MyConfigField   string        
+    Database        DB
 }
 
 type DB struct {
-    Username string `env:"UN"` 
+    Host     string
+    Username string
+    Password string
+}
+
+...
+# Expected environment variables.
+MY_CONFIG_FIELD=fieldvalue;
+DATABASE_HOST=localhost:5432;
+DATABASE_USERNAME=root;
+DATABASE_PASSWORD=pw;
+```
+
+You can override the default naming with the "env" tag.
+```sh
+type options struct {
+    MyConfigField   string  `env:"NEW_NAME"`        
+    Database        DB      `env:"DB"`
+}
+
+type DB struct {
+    Host     string
+    Username string `env:"UN"`
     Password string `env:"PW"`
 }
 
 ...
 # Expected environment variables.
-HOST=myhost;
-DB_UN=myusername;
-DB_PW=mypassword;
+NEW_NAME=fieldvalue;
+DB_HOST=localhost:5432;
+DB_UN=root;
+DB_PW=pw;
 ```
 
-You can generate an env template.
+You can generate an env template with pre-populated default values.
 
 ```sh
-type options struct {
-    Host    string             // Defaults to 'HOST'.
-    DB      DB      `env:"DB"` // Acts as a namespace for structs.
+
+func main() {
+    appCfg := options{
+        DBHost: "localhost:5432", // Default value.
+    }
+    err := config.Load(&appCfg)
+    if err != nil {
+        println("err: %v", err.Error())
+        os.Exit(1)
+    }
 }
 
-type DB struct {
-    Username string `env:"UN"` 
-    Password string `env:"PW"`
+type options struct {
+    DBHost      string `env:"DB_HOST"`   
+    DBUsername  string `env:"DB_UN"`
+    DBPassword  string `env:"DB_PW"`
 }
 
 ...
@@ -232,7 +242,7 @@ type DB struct {
 
 #!/usr/bin/env bash
 
-export HOST=localhost:5432;
+export DB_HOST=localhost:5432;
 export DB_UN=;
 export DB_PW=;
 
@@ -265,46 +275,50 @@ export UN=; # no prefix
 export PW=; # no prefix
 ```
 
-## Other General Options
+## Other Options
 
-You may customize the help screen.
+### Customize Help Screen 
+
+Pre-pend text to the default help screen.
 
 ```sh
 package main
 
-import (
-    "log"
-    "os"
-    
-    "github.com/pcelvng/go-config"
-)
+import ...
 
 var hlp = `
-{{app}}
-
 Welcome to my application. The purpose of this application is to connect to the database
-and demonstrate the power of go-config.
-
-Flag Options:
-{{flags}}
+and demonstrate go-config.
 `
 
 func main() {
     appCfg := options{}
-    config.HelpTemplate(hlp)
-    config.AppName("myapp") // Could also include the app version here.
-    err := config.Load(&appCfg)
-    if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
-    }
+
+    config.Help(hlp)
+    config.LoadOrDie(&appCfg)
 }
 
 type options struct {
-    Host     string `flag:"db-host,h" comment:"The db host:port."`
-    Username string `flag:"db-un" comment:"The db username."`
-    Password string `flag:"db-pw" comment:"The db password."`
+    Host     string `flag:"db-host,h" help:"The db host:port."`
+    Username string `flag:"db-un" help:"The db username."`
+    Password string `flag:"db-pw" help:"The db password."`
 }
+
+...
+
+> ./myapp -help
+
+Welcome to my application. The purpose of this application is to connect to the database
+and demonstrate go-config.
+
+-config,-c      The config file path (if using one). File extension must be one of "toml", "yaml", "yml", "json".
+-gen,-g         Generate config template. One of "toml", "yaml", "json", "env".
+-show           Show loaded config values and exit.
+
+-db-host        The db host:port. (default: localhost:5432)
+-db-un          The db username.
+-db-pw          The db password.
+
 ``` 
 
 You can disable a struct field entirely by providing the 'ignore' value in
@@ -316,19 +330,20 @@ type options struct {
 }
 ```
 
-For longer descriptions you may call the "VarComment" package function.
+For longer descriptions you may call the "Comment" method. Embedded struct methods are 
+addressed using "." in between members.
 
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.VarComment("Host", "once upon a time there was a very long description....")
-    config.VarComment("DB.Username", "a really long custom description for the username field...")
+    config.Comment("Host", "once upon a time there was a very long description....")
+    config.Comment("DB.Username", "a really long custom description for the username field...")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
@@ -349,11 +364,11 @@ func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.VarComment("DoesNotExist", "once upon a time there was a very long description....")
+    config.Comment("DoesNotExist", "once upon a time there was a very long description....")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
@@ -375,7 +390,7 @@ You may specify if a field is required. By default, fields are not required.
 ```sh
 type options struct {
     Host    string `req:"true"`
-    DB      DB     `req:"false"` // Allowed but not necessary since this is the default.
+    DB      DB     `req:"false"` // Allowed but unnessary.
 }
 ```
 
@@ -393,43 +408,20 @@ type options struct {
 }
 ```
 
-You may disable any configuration type. This is great for simplifying the application user experience so the user 
-is not bombarded with too many options.
+By default all configuration modes are enabled. You may specify the exact modes you wish to use with
+the "With" method.
 
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.DisableFlags() // disables custom flags.
-    
-    // Disabling any of the file config formats will mean that file type is not accepted 
-    // for the application and options to generate a template of that type are also disabled.
-    //
-    // Users may wish to disable one or more formats to simplify the user experience. In this way
-    // users are not given too many configuration choices.
-    config.DisableTOML()
-    config.DisableYAML()
-    config.DisableJSON()
-    
-    // You may disable all file configuration types at once to make the application only accept flags and env variables.
-    // If all file config types are disabled then the default help screen and flags will no longer support the 'config'
-    // option.
-    config.DisableFiles()
-    
-    // You may disable env.
-    config.DisableEnv()
-    
-    // You may also specify that 'only' one configuration type is active.
-    config.OnlyFlags()
-    config.OnlyEnv()
-    config.OnlyTOML()
-    config.OnlyJSON()
-   
+    config.With("flags","env","toml","json","yaml")
+
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
@@ -438,6 +430,9 @@ type options struct {
     DB      DB
 }
 ```
+
+There are a variety of supported validation field tags using the https://github.com/go-validator/validator 
+third party library.
 
 You may choose to provide a Validate() hook for more complex validations and config related initialization. This is
 also convenient from the perspective of unifying where initialization/config related errors come from.
@@ -448,10 +443,10 @@ func main() {
         Host: "localhost:5432", // default host value
     }
     
-    err := config.LoadWithValidation(&appCfg)
+    err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
-        os.Exit(0)
+        os.Exit(1)
     }
 }
 
@@ -470,35 +465,20 @@ func (o *options) Validate() error {
 }
 ```
 
-Use "LoadOrDie" to automatically print the error and exit the program. This can further simplify initialization but
-at the expense of losing a little control.
+For simplification, consider using "LoadOrDie".
 
 ```sh
 func main() {
     appCfg := options{
-        Host: "localhost:5432", // default host value
+        Host: "localhost:5432", // Default host value.
     }
     
-    // If there is an error then the config library will display the error and terminate the 
-    // application.
     config.LoadOrDie(&appCfg)
-    
-    // alternatively...
-    config.LoadWithValidationOrDie(&appCfg)
 }
 
 type options struct {
     Username string `req:"true"`
     Password string
-}
-
-// Validate implements the config validator interface.
-//
-// Validate is called after the config values are read in.
-func (o *options) Validate() error {
-    if o.Username == "" && o.Password == "" {
-        return errors.New("Invalid username password combination."
-    }
 }
 ```
 
@@ -511,14 +491,18 @@ func main() {
         Host: "localhost:5432", // default host value
     }
     
-    config.Load(&appCfg)
+    err := config.Load(&appCfg)
+    if err != nil {
+        println("err: %v", err.Error())
+        os.Exit(1)
+    }
     config.ShowValues() // Values dumped to stderr.
 }
 
 type options struct {
     Host     string
     Username string `req:"true"`
-    Password string `show:"false"` // default is "true"
+    Password string `show:"false"` // Default is "true".
 }
 
 ...
@@ -574,9 +558,39 @@ export CUSTOM_TIME_FORMAT= ; # "2006/01/02"
 
 ### Precedence
 
-When a field value is provided through more than one avenue at once then the following takes precedence.
+When a field value is provided through more than one channel at once then the following takes precedence.
 
 1. Flags
-3. Config file (value from one of the config files)
-2. Environment
+2. Config file (value from one of the config files)
+3. Environment
 4. Default value
+
+Defaults overwritten by environment variables overwritten by config file values overwritten by flags. Flag values always
+trump.
+
+# Future Features
+
+1. Load from consul.
+2. Load from etcd.
+3. Load from vault.
+3. Full template support for help menu customization.
+4. Flag "commands".
+5. Hot loading (see below for discussion).
+6. Hot loading from an HTTP endpoint.
+7. HTTP call for configuration state and meta configuration info (like source type).
+
+## Hot Loading
+
+Hot loading is the practice of re-loading configuration values after the application has started. In general, we feel 
+applications should load configuration once upon initialization and keep configuration state for the duration of 
+instance life.
+
+Hot loading can lead to difficult-to-manage application state which in turn leads to:
+- Increased difficulty debugging.
+- Inconsistent state across many instances of the same application.
+- Increased application logic to handle state. 
+
+However, we also feel there are some good use cases such as:
+- Rotating passwords.
+- Updating configuration for front-line "always on" applications.
+- Updating shortlists such as a blacklist or whitelist without needing to reload the application.
