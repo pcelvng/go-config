@@ -18,7 +18,7 @@ import (
 
 const (
 	flagTag   = "flag"
-	descTag   = "comment" // do we want a different tag for the flag vs toml?
+	helpTag   = "help"
 	fmtTag    = "fmt"
 	configTag = "config"
 )
@@ -44,7 +44,7 @@ func New(i interface{}) (*Flags, error) {
 		dField := vStruct.Type().Field(i)
 		tag := dField.Tag.Get(flagTag)
 		name := strcase.ToKebab(dField.Name)
-		desc := dField.Tag.Get(descTag)
+		desc := dField.Tag.Get(helpTag)
 		confTag := dField.Tag.Get(configTag)
 		if tag == "" {
 			tag = name

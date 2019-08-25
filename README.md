@@ -160,10 +160,11 @@ You may ask for help.
 -config,-c      The config file path (if using one). File extension must be one of "toml", "yaml", "yml", "json".
 -gen,-g         Generate config template. One of "toml", "yaml", "json", "env".
 -show           Show loaded config values and exit.
+-version,v      Show application version and exit.
 
 -db-host,host   The db host:port. (default: localhost:5432)
--db-pw
--db-un
+-db-un          The db username.
+-db-pw          The db password.
 
 ```
 
@@ -294,7 +295,7 @@ and demonstrate go-config.
 func main() {
     appCfg := options{}
 
-    config.Help(hlp)
+    config.AppHelp(hlp)
     config.LoadOrDie(&appCfg)
 }
 
@@ -314,6 +315,7 @@ and demonstrate go-config.
 -config,-c      The config file path (if using one). File extension must be one of "toml", "yaml", "yml", "json".
 -gen,-g         Generate config template. One of "toml", "yaml", "json", "env".
 -show           Show loaded config values and exit.
+-version,v      Show application version and exit.
 
 -db-host        The db host:port. (default: localhost:5432)
 -db-un          The db username.
@@ -321,25 +323,31 @@ and demonstrate go-config.
 
 ``` 
 
+### Ignoring Fields
+
 You can disable a struct field entirely by providing the 'ignore' value in
 the 'config' tag.
 
 ```sh
 type options struct {
-    DBName `config:"ignore"` // DBName disabled entirely.
+    // DBName disabled entirely.
+    DBName `config:"ignore"` 
 }
 ```
 
-For longer descriptions you may call the "Comment" method. Embedded struct methods are 
-addressed using "." in between members.
+### Long Help Descriptions
+
+For longer help descriptions you may call the "Help" method. Embedded struct methods are 
+addressed using "." in between members. Long help descriptions will likely be rendered on
+the line above a field when rendering to a template.
 
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.Comment("Host", "once upon a time there was a very long description....")
-    config.Comment("DB.Username", "a really long custom description for the username field...")
+    config.Help("Host", "once upon a time there was a very long description....")
+    config.Help("DB.Username", "a really long custom description for the username field...")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
@@ -357,6 +365,12 @@ type DB struct {
 }
 ```
 
+### Struct Help Description
+
+Help descriptions can be provided for embedded structs.
+
+### Help Field Not Found
+
 If the specified variable field is not found the config will return an error.
 
 ```sh
@@ -364,7 +378,7 @@ func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.Comment("DoesNotExist", "once upon a time there was a very long description....")
+    config.Help("DoesNotExist", "once upon a time there was a very long description....")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
@@ -394,6 +408,8 @@ type options struct {
 }
 ```
 
+### Correct Struct Tag Formation
+
 Struct tags must be formed according to golang best practices. If not, then the option will not be honored.
 
 ```sh
@@ -408,7 +424,7 @@ type options struct {
 }
 ```
 
-By default all configuration modes are enabled. You may specify the exact modes you wish to use with
+By default all configuration modes are enabled. You may specify the exact modes you wish to use by calling
 the "With" method.
 
 ```sh
@@ -416,7 +432,7 @@ func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.With("flags","env","toml","json","yaml")
+    config.With("flag", "env", "toml", "json", "yaml")
 
     err := config.Load(&appCfg)
     if err != nil {
@@ -430,6 +446,8 @@ type options struct {
     DB      DB
 }
 ```
+
+### Validation 
 
 There are a variety of supported validation field tags using the https://github.com/go-validator/validator 
 third party library.
@@ -460,10 +478,12 @@ type options struct {
 // Validate is called after the config values are read in.
 func (o *options) Validate() error {
     if o.Username == "" && o.Password == "" {
-        return errors.New("Invalid username password combination."
+        return errors.New("Invalid username/password combination."
     }
 }
 ```
+
+### LoadOrDie
 
 For simplification, consider using "LoadOrDie".
 
@@ -568,16 +588,19 @@ When a field value is provided through more than one channel at once then the fo
 Defaults overwritten by environment variables overwritten by config file values overwritten by flags. Flag values always
 trump.
 
-# Future Features
+# Future Features Under Consideration
 
 1. Load from consul.
 2. Load from etcd.
 3. Load from vault.
-3. Full template support for help menu customization.
-4. Flag "commands".
-5. Hot loading (see below for discussion).
-6. Hot loading from an HTTP endpoint.
-7. HTTP call for configuration state and meta configuration info (like source type).
+4. Full template support for help menu customization.
+5. Flag "commands".
+6. Hot loading (see below for discussion).
+7. Hot loading from an HTTP endpoint.
+8. HTTP call for configuration state and meta configuration info (like source type).
+9. Support for env loaded from a file.
+10. Support loading files from multiple locations (useful for loading from common default paths first).
+11. First class CLI tools.
 
 ## Hot Loading
 

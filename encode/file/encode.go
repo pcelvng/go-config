@@ -6,24 +6,13 @@ import (
 	"io"
 
 	"github.com/hydronica/toml"
-	"gopkg.in/yaml.v2"
 	"github.com/pcelvng/go-config/encode/env"
+	"gopkg.in/yaml.v2"
 )
 
-// Encode a config to a file based on the ext passed in
-// Note: only toml supports comments
+// Encode a config to a file based on passed extension.
 func Encode(w io.Writer, i interface{}, ext string) error {
 	switch ext {
-	case "toml":
-		enc := toml.NewEncoder(w)
-		return enc.Encode(i)
-	case "yaml", "yml":
-		b, err := yaml.Marshal(i)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(b)
-		return err
 	case "env":
 		b, err := env.NewEncoder().Marshal(i)
 		if err != nil {
@@ -33,6 +22,16 @@ func Encode(w io.Writer, i interface{}, ext string) error {
 		return err
 	case "json":
 		b, err := json.MarshalIndent(i, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(b)
+		return err
+	case "toml":
+		enc := toml.NewEncoder(w)
+		return enc.Encode(i)
+	case "yaml", "yml":
+		b, err := yaml.Marshal(i)
 		if err != nil {
 			return err
 		}
