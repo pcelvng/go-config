@@ -89,9 +89,14 @@ type standardFlags struct {
 //
 // Special flags are processed before loading config values.
 func (g *goConfig) Load() error {
-	// Process general/special flags.
+	// Process special flags.
 	stdFlgs := &standardFlags{}
-	flg.New(stdFlgs)
+	flgs, err := flg.New(stdFlgs)
+	if err != nil {
+		return err
+	}
+
+	flgs.Unmarshal()
 
 	// Validate if struct implements validator interface.
 	if val, ok := g.cfgRef.(Validator); ok {

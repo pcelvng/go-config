@@ -79,7 +79,7 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 			name = tag
 		}
 
-		comment := vStruct.Type().Field(i).Tag.Get(commentTag) // "comment" tag value
+		comment := vStruct.Type().Field(i).Tag.Get(helpTag) // "comment" tag value
 
 		// prepend prefix
 		if prefix != "" {

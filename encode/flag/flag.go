@@ -14,13 +14,14 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jbsmith7741/go-tools/appenderr"
 	"github.com/pcelvng/go-config/encode"
+	//flag "github.com/spf13/pflag"
 )
 
 const (
-	flagTag   = "flag"
-	helpTag   = "help"
-	fmtTag    = "fmt"
-	configTag = "config"
+//flagTag = "flag"
+//helpTag = "help"
+//fmtTag    = "fmt"
+//configTag = "config"
 )
 
 type Flags struct {
@@ -29,7 +30,6 @@ type Flags struct {
 }
 
 // New creates a custom flagset based on the struct i.
-//
 func New(i interface{}) (*Flags, error) {
 	flg := &Flags{
 		defaults: make(map[string]string),

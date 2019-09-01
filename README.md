@@ -601,6 +601,7 @@ trump.
 9. Support for env loaded from a file.
 10. Support loading files from multiple locations (useful for loading from common default paths first).
 11. First class CLI tools.
+12. Support for "options" flag to list and automatically validate a short list of options.
 
 ## Hot Loading
 

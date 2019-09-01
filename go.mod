@@ -9,6 +9,7 @@ require (
 	github.com/jbsmith7741/go-tools v0.2.0
 	github.com/jbsmith7741/trial v0.3.0
 	github.com/pkg/errors v0.8.1
+	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.3.0
 	gopkg.in/yaml.v2 v2.2.2
 )

@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	envTag     = "env"    // Expected env struct tag name.
-	configTag  = "config" // Expected general config values (only "ignore" supported ATM).
-	fmtTag     = "fmt"
-	commentTag = "comment" // Only used for encoding.
+	envTag    = "env"    // Expected env struct tag name.
+	configTag = "config" // Expected general config values (only "ignore" supported ATM).
+	fmtTag    = "fmt"
+	helpTag   = "help" // Only used for encoding.
 )
 
 func New() *Decoder {
@@ -55,17 +55,19 @@ func populate(prefix string, v interface{}) error {
 			continue
 		}
 
+		mField := vStruct.Type().Field(i)
+
 		// Check general 'config' tag value. if it has a "ignore" value
 		// then skip it entirely.
-		if cfgV := vStruct.Type().Field(i).Tag.Get(configTag); cfgV == "ignore" {
+		if cfgV := mField.Tag.Get(configTag); cfgV == "ignore" {
 			continue
 		}
 
 		// env tag name, if present, trumps the generated field name.
 		//
 		// If the field name is used it is converted to screaming snake case (uppercase with underscores).
-		name := vStruct.Type().Field(i).Name
-		tag := vStruct.Type().Field(i).Tag.Get(envTag) // env tag value
+		name := mField.Name
+		tag := mField.Tag.Get(envTag) // env tag value
 		switch tag {
 		case "-":
 			continue // ignore field
@@ -96,14 +98,14 @@ func populate(prefix string, v interface{}) error {
 
 		// if the value type is a struct or struct pointer then recurse.
 		switch field.Kind() {
-		// explicity ignored list of types.
+		// explicity ignored list of unsupported types.
 		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map:
 			continue
 		case reflect.Struct:
 			// time.Time special struct case
 			if field.Type().String() == "time.Time" {
 				// check for 'fmt' tag.
-				timeFmt := vStruct.Type().Field(i).Tag.Get(fmtTag)
+				timeFmt := mField.Tag.Get(fmtTag)
 
 				// get env value
 				envVal := os.Getenv(name)
@@ -117,7 +119,7 @@ func populate(prefix string, v interface{}) error {
 				timeFmt, err := setTime(field, envVal, timeFmt)
 				if err != nil {
 					return fmt.Errorf("'%s' from '%s' cannot be set to %s (%s); using '%v' time format",
-						envVal, name, vStruct.Type().Field(i).Name, field.Type(), timeFmt)
+						envVal, name, mField.Name, field.Type(), timeFmt)
 				}
 
 				continue
@@ -139,7 +141,7 @@ func populate(prefix string, v interface{}) error {
 			if reflect.Indirect(field).Kind() == reflect.Struct {
 				if reflect.Indirect(field).Type().String() == "time.Time" {
 					// check for 'fmt' tag.
-					timeFmt := vStruct.Type().Field(i).Tag.Get(fmtTag)
+					timeFmt := mField.Tag.Get(fmtTag)
 
 					// get env value
 					envVal := os.Getenv(name)
@@ -153,7 +155,7 @@ func populate(prefix string, v interface{}) error {
 					timeFmt, err := setTime(reflect.Indirect(field), envVal, timeFmt)
 					if err != nil {
 						return fmt.Errorf("'%s' from '%s' cannot be set to %s (%s); using '%v' time format",
-							envVal, name, vStruct.Type().Field(i).Name, field.Type(), timeFmt)
+							envVal, name, mField.Name, field.Type(), timeFmt)
 					}
 
 					continue
