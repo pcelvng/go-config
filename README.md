@@ -449,9 +449,6 @@ type options struct {
 
 ### Validation 
 
-There are a variety of supported validation field tags using the https://github.com/go-validator/validator 
-third party library.
-
 You may choose to provide a Validate() hook for more complex validations and config related initialization. This is
 also convenient from the perspective of unifying where initialization/config related errors come from.
 
@@ -602,6 +599,7 @@ trump.
 10. Support loading files from multiple locations (useful for loading from common default paths first).
 11. First class CLI tools.
 12. Support for "options" flag to list and automatically validate a short list of options.
+13. Support for field level validation from "validate" field tag (https://github.com/go-validator/validator).
 
 ## Hot Loading
 

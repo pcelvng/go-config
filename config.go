@@ -3,6 +3,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
+
+	"github.com/davecgh/go-spew/spew"
+
+	"github.com/jinzhu/copier"
 
 	flg "github.com/pcelvng/go-config/encode/flag"
 )
@@ -18,24 +24,15 @@ var (
 		"flag", // flag trumps all.
 	}
 
-	fileExts = []string{
-		"toml",
-		"yaml",
-		"yml",
-		"json",
-	}
-
-	defaultCfg = New(nil)
+	defaultCfg = New()
 )
 
 func Load(c interface{}) error {
-	defaultCfg.cfgRef = c
-	return defaultCfg.Load()
+	return defaultCfg.Load(c)
 }
 
 func LoadOrDie(c interface{}) {
-	defaultCfg.cfgRef = c
-	defaultCfg.LoadOrDie()
+	defaultCfg.LoadOrDie(c)
 }
 
 // With is a package wrapper around goConfig.With().
@@ -48,11 +45,15 @@ func Version(s string) *goConfig {
 	return defaultCfg.Version(s)
 }
 
+// AddHelp is a package wrapper around goConfig.AddHelp().
+func AddHelp(hlp string) *goConfig {
+	return defaultCfg.AddHelp(hlp)
+}
+
 // New creates a new config.
-func New(c interface{}) *goConfig {
+func New() *goConfig {
 	return &goConfig{
-		cfgRef: c,
-		with:   withList,
+		with: withList,
 	}
 }
 
@@ -60,23 +61,22 @@ func New(c interface{}) *goConfig {
 // This does mean that the variable can probably only be set with a ":=" which would prevent
 // usage outside of a single function.
 type goConfig struct {
-	cfgRef  interface{}
 	with    []string
 	version string // Self proclaimed app version.
 	helpTxt string // App custom help text, pre-pended to generated help text.
-
-	// standard flags
-	sFlgs standardFlags
-
-	//flags *flg.Flags
 }
 
 type standardFlags struct {
-	ConfigPath  string `flag:"config,c" env:"-" toml:"-" help:"The config file path (if using one). File extension must be one of "toml", "yaml", "yml", "json".`
-	GenConfig   string `flag:"gen,g" env:"-" toml:"-" help:"Generate config template. One of "toml", "yaml", "json", "env"."`
+	ConfigPath  string `flag:"config,c" env:"-" toml:"-"`
+	GenConfig   string `flag:"gen,g" env:"-" toml:"-"`
 	ShowValues  bool   `flag:"show" env:"-" toml:"-" help:"Show loaded config values and exit."`
 	ShowVersion bool   `flag:"version,v" env:"-" toml:"-" help:"Show application version and exit."`
 }
+
+var (
+	cfgPathHelp   = "Config file path. Extension must be %s."
+	genConfigHelp = "Generate config template (%s)."
+)
 
 // Load the configs in the following priority from most passive to most active:
 //
@@ -88,26 +88,83 @@ type standardFlags struct {
 // After the configs are loaded validate the result if config is a Validator.
 //
 // Special flags are processed before loading config values.
-func (g *goConfig) Load() error {
-	// Process special flags.
-	stdFlgs := &standardFlags{}
-	flgs, err := flg.New(stdFlgs)
+func (g *goConfig) Load(appCfg interface{}) error {
+	// Verify that appCfg is struct pointer. Should not be nil.
+	appCfgV := reflect.ValueOf(appCfg)
+	if appCfgV.Kind() != reflect.Ptr || appCfgV.IsNil() {
+		return fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(appCfg))
+	} else if pv := reflect.Indirect(appCfgV); pv.Kind() != reflect.Struct { // Must be pointing to a struct.
+		return fmt.Errorf("'%v' must be a non-nil pointer struct", reflect.TypeOf(appCfg))
+	}
+
+	// new deep copy of appCfg (to preserve defaults).
+	appCfgCopy := reflect.New(reflect.TypeOf(appCfg).Elem()).Interface()
+	err := copier.Copy(appCfgCopy, appCfg)
 	if err != nil {
 		return err
 	}
 
-	flgs.Unmarshal()
+	// Process special flags.
+	stdFlgs := &standardFlags{}
+	flgDecoder := flg.NewDecoder(g.helpTxt)
+
+	// Customize special flags help screen and options.
+	if len(g.fileExts()) > 0 {
+		msg := fmt.Sprintf(cfgPathHelp, strings.Join(g.fileExts(), "|"))
+		flgDecoder.SetHelp("ConfigPath", msg)
+	} else {
+		// no file exts - ignore the help message, not applicable.
+		flgDecoder.IgnoreField("ConfigPath")
+	}
+
+	if len(g.genTypes()) > 0 {
+		msg := fmt.Sprintf(genConfigHelp, strings.Join(g.fileExts(), "|"))
+		flgDecoder.SetHelp("GenConfig", msg)
+	} else {
+		// no generate-able types - ignore the help message, not applicable.
+		flgDecoder.IgnoreField("GenConfig")
+	}
+
+	if g.version == "" {
+		flgDecoder.IgnoreField("ShowVersion")
+	}
+
+	err = flgDecoder.Unmarshal(stdFlgs, appCfgCopy)
+	if err != nil {
+		return err
+	}
+
+	// ShowVersion
+	if stdFlgs.ShowVersion {
+		fmt.Fprintln(os.Stderr, g.version)
+		os.Exit(0)
+	}
+
+	// ShowValues
+	if stdFlgs.ShowValues {
+		// TODO: show values in the README format.
+		spew.Dump(appCfg)
+		spew.Dump(appCfgCopy)
+		os.Exit(0)
+	}
 
 	// Validate if struct implements validator interface.
-	if val, ok := g.cfgRef.(Validator); ok {
+	if val, ok := appCfg.(Validator); ok {
 		return val.Validate()
 	}
 	return nil
 }
 
+// AddHelp allows the user to provide a block of text that is pre-pended to the
+// generated application help screen.
+func (g *goConfig) AddHelp(hlp string) *goConfig {
+	g.helpTxt = hlp
+	return g
+}
+
 // LoadOrDie calls Load and prints an error message and exits if there is an error.
-func (g *goConfig) LoadOrDie() {
-	err := g.Load()
+func (g *goConfig) LoadOrDie(appCfg interface{}) {
+	err := g.Load(appCfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
 		os.Exit(1)
@@ -134,6 +191,55 @@ func (g *goConfig) With(w ...string) *goConfig {
 func (g *goConfig) Version(s string) *goConfig {
 	g.version = s
 	return g
+}
+
+// fileExts returns a slice of all the included file extensions.
+func (g *goConfig) fileExts() []string {
+	exts := make([]string, 0)
+
+	i := itemIn("toml", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	i = itemIn("yaml", g.with)
+	if i != "" {
+		exts = append(exts, i, "yml")
+	}
+
+	i = itemIn("json", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	return exts
+}
+
+// genTypes returns a slice of all the included generate-able extensions.
+func (g *goConfig) genTypes() []string {
+	exts := make([]string, 0)
+
+	i := itemIn("env", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	i = itemIn("toml", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	i = itemIn("yaml", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	i = itemIn("json", g.with)
+	if i != "" {
+		exts = append(exts, i)
+	}
+
+	return exts
 }
 
 // itemIn will return 'i' when 'i' exists in 'all'.
