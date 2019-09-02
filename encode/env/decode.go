@@ -18,7 +18,7 @@ var (
 	helpTag   = "help" // Only used for encoding.
 )
 
-func New() *Decoder {
+func NewDecoder() *Decoder {
 	return &Decoder{}
 }
 

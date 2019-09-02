@@ -6,10 +6,11 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/pcelvng/go-config/encode/env"
+	"github.com/pcelvng/go-config/encode/file"
+
 	"github.com/davecgh/go-spew/spew"
-
 	"github.com/jinzhu/copier"
-
 	flg "github.com/pcelvng/go-config/encode/flag"
 )
 
@@ -118,7 +119,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	if len(g.genTypes()) > 0 {
-		msg := fmt.Sprintf(genConfigHelp, strings.Join(g.fileExts(), "|"))
+		msg := fmt.Sprintf(genConfigHelp, strings.Join(g.genTypes(), "|"))
 		flgDecoder.SetHelp("GenConfig", msg)
 	} else {
 		// no generate-able types - ignore the help message, not applicable.
@@ -129,7 +130,12 @@ func (g *goConfig) Load(appCfg interface{}) error {
 		flgDecoder.IgnoreField("ShowVersion")
 	}
 
-	err = flgDecoder.Unmarshal(stdFlgs, appCfgCopy)
+	if itemIn("flag", g.with) == "" {
+		// flag excluded, don't render app config.
+		err = flgDecoder.Unmarshal(stdFlgs)
+	} else {
+		err = flgDecoder.Unmarshal(stdFlgs, appCfgCopy)
+	}
 	if err != nil {
 		return err
 	}
@@ -138,6 +144,21 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	if stdFlgs.ShowVersion {
 		fmt.Fprintln(os.Stderr, g.version)
 		os.Exit(0)
+	}
+
+	// Generate config template.
+	if stdFlgs.GenConfig != "" {
+		err = file.Encode(os.Stdout, appCfg, stdFlgs.GenConfig)
+		if err != nil {
+			return err
+		}
+		os.Exit(0)
+	}
+
+	// Read in all values.
+	err = g.loadAll(stdFlgs.ConfigPath, appCfg)
+	if err != nil {
+		return err
 	}
 
 	// ShowValues
@@ -152,6 +173,37 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	if val, ok := appCfg.(Validator); ok {
 		return val.Validate()
 	}
+	return nil
+}
+
+// loadAll iterates through the "with" list and loads
+// the config values into appCfg.
+func (g *goConfig) loadAll(pth string, appCfg interface{}) error {
+	doneFile := false
+	for _, w := range g.with {
+		switch w {
+		case "env":
+			err := env.NewDecoder().Unmarshal(appCfg)
+			if err != nil {
+				return err
+			}
+		case "toml", "yaml", "json":
+			if !doneFile && pth != "" {
+				err := file.Load(pth, appCfg)
+				if err != nil {
+					return err
+				}
+
+				doneFile = true
+			}
+		case "flag":
+			err := flg.NewDecoder("").Unmarshal(appCfg)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -183,6 +235,7 @@ func (g *goConfig) With(w ...string) *goConfig {
 			newWith = append(newWith, newItem)
 		}
 	}
+	g.with = newWith
 
 	return g
 }

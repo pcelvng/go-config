@@ -21,7 +21,7 @@ type Encoder struct {
 }
 
 func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
-	fmt.Fprint(e.buf, "#!/bin/sh\n\n")
+	fmt.Fprint(e.buf, "#!/usr/bin/env sh\n\n")
 	return e.marshal("", v)
 }
 
