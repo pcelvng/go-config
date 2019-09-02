@@ -6,11 +6,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/pcelvng/go-config/encode/env"
-	"github.com/pcelvng/go-config/encode/file"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/copier"
+	"github.com/pcelvng/go-config/encode/env"
+	"github.com/pcelvng/go-config/encode/file"
 	flg "github.com/pcelvng/go-config/encode/flag"
 )
 
@@ -156,7 +155,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	// Read in all values.
-	err = g.loadAll(stdFlgs.ConfigPath, appCfg)
+	err = g.loadAll(stdFlgs.ConfigPath, stdFlgs, appCfg)
 	if err != nil {
 		return err
 	}
@@ -165,7 +164,6 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	if stdFlgs.ShowValues {
 		// TODO: show values in the README format.
 		spew.Dump(appCfg)
-		spew.Dump(appCfgCopy)
 		os.Exit(0)
 	}
 
@@ -178,7 +176,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 // loadAll iterates through the "with" list and loads
 // the config values into appCfg.
-func (g *goConfig) loadAll(pth string, appCfg interface{}) error {
+func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 	doneFile := false
 	for _, w := range g.with {
 		switch w {
@@ -197,7 +195,7 @@ func (g *goConfig) loadAll(pth string, appCfg interface{}) error {
 				doneFile = true
 			}
 		case "flag":
-			err := flg.NewDecoder("").Unmarshal(appCfg)
+			err := flg.NewDecoder("").Unmarshal(stdFlgs, appCfg)
 			if err != nil {
 				return err
 			}
