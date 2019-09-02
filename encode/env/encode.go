@@ -21,7 +21,7 @@ type Encoder struct {
 }
 
 func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
-	fmt.Fprint(e.buf, "#!/bin/sh\n\n")
+	fmt.Fprint(e.buf, "#!/usr/bin/env sh\n\n")
 	return e.marshal("", v)
 }
 
@@ -79,7 +79,7 @@ func (e *Encoder) writeAll(prefix string, v interface{}) error {
 			name = tag
 		}
 
-		comment := vStruct.Type().Field(i).Tag.Get(commentTag) // "comment" tag value
+		comment := vStruct.Type().Field(i).Tag.Get(helpTag) // "comment" tag value
 
 		// prepend prefix
 		if prefix != "" {
