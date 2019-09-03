@@ -502,12 +502,16 @@ type options struct {
 After reading in config values you can dump the values to stderr. By default, everything is shown but sensitive 
 information may be omitted by setting the "show" tag to false.
 
+"AddShowMsg" takes a string that, if not empty will be prepended to the shown
+output. It must be called before "Load".
+
 ```sh
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
     
+    config.AddShowMsg("myapp version 0.1.0")
     err := config.Load(&appCfg)
     if err != nil {
         println("err: %v", err.Error())
@@ -518,16 +522,18 @@ func main() {
 
 type options struct {
     Host     string
-    Username string `req:"true"`
-    Password string `show:"false"` // Default is "true".
+    Username string   `req:"true"`
+    Password string   `show:"false"` // Default is "true".
 }
 
 ...
 
 > ./myapp -host=myhost:5432 -username=myusername -password=mypassword
-Host:     "myhost:5432" (default: "localhost:5432")
-Username: "myusername"
-Password: [redacted]
+myapp version 0.1.0
+
+host:      "myhost:5432" [default: "localhost:5432"]
+username:  "myusername" (required)
+password:  [redacted]
 ```
 
 You may show the values by providing the 'show' flag. If provided, the application will show all the 
@@ -535,10 +541,11 @@ config values and exit.
 
 ```sh
 > ./myapp -show -host=myhost:5432 -username=myusername -password=mypassword
+myapp version 0.1.0
 
-Host:     "myhost:5432" (default: "localhost:5432")
-Username: "myusername"
-Password: [redacted]
+host:      "myhost:5432" [default: "localhost:5432"]
+username:  "myusername" (required)
+password:  [redacted]
 ```
 
 All types support time.Time and time.Duration marshaling and unmarshaling. 
