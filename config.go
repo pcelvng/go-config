@@ -2,11 +2,14 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/pcelvng/go-config/internal/show"
+
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/copier"
 	"github.com/pcelvng/go-config/encode/env"
 	"github.com/pcelvng/go-config/encode/file"
@@ -62,8 +65,11 @@ func New() *goConfig {
 // usage outside of a single function.
 type goConfig struct {
 	with    []string
-	version string // Self proclaimed app version.
-	helpTxt string // App custom help text, pre-pended to generated help text.
+	version string      // Self proclaimed app version.
+	helpTxt string      // App custom help text, pre-pended to generated help text.
+	showTxt string      // Custom show text, pre-pended to generated show output.
+	dAppCfg interface{} // Copy of config containing original default values.
+	appCfg  interface{} // Original app config, ultimately containing resolved values.
 }
 
 type standardFlags struct {
@@ -104,6 +110,9 @@ func (g *goConfig) Load(appCfg interface{}) error {
 		return err
 	}
 
+	g.dAppCfg = appCfgCopy
+	g.appCfg = appCfg
+
 	// Process special flags.
 	stdFlgs := &standardFlags{}
 	flgDecoder := flg.NewDecoder(g.helpTxt)
@@ -133,7 +142,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 		// flag excluded, don't render app config.
 		err = flgDecoder.Unmarshal(stdFlgs)
 	} else {
-		err = flgDecoder.Unmarshal(stdFlgs, appCfgCopy)
+		err = flgDecoder.Unmarshal(stdFlgs, g.appCfg)
 	}
 	if err != nil {
 		return err
@@ -147,7 +156,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 	// Generate config template.
 	if stdFlgs.GenConfig != "" {
-		err = file.Encode(os.Stdout, appCfg, stdFlgs.GenConfig)
+		err = file.Encode(os.Stdout, g.appCfg, stdFlgs.GenConfig)
 		if err != nil {
 			return err
 		}
@@ -155,23 +164,47 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	// Read in all values.
-	err = g.loadAll(stdFlgs.ConfigPath, stdFlgs, appCfg)
+	err = g.loadAll(stdFlgs.ConfigPath, stdFlgs, g.appCfg)
 	if err != nil {
 		return err
 	}
 
 	// ShowValues
 	if stdFlgs.ShowValues {
-		// TODO: show values in the README format.
-		spew.Dump(appCfg)
+		//TODO: show values in the README format.
+		//spew.Dump(appCfg)
+		err = g.ShowValues()
+		if err != nil {
+			return err
+		}
 		os.Exit(0)
 	}
 
 	// Validate if struct implements validator interface.
-	if val, ok := appCfg.(Validator); ok {
+	if val, ok := g.appCfg.(Validator); ok {
 		return val.Validate()
 	}
 	return nil
+}
+
+func (g *goConfig) ShowValues() error {
+	return g.FShowValues(os.Stderr)
+}
+
+func (g *goConfig) FShowValues(w io.Writer) error {
+	e := show.NewEncoder(g.showTxt + "\n")
+	fullText, err := e.Unmarshal(g.dAppCfg, g.appCfg)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(w, fullText)
+
+	return nil
+}
+
+func (g *goConfig) AddShowMsg(showTxt string) *goConfig {
+	g.showTxt = showTxt
+	return g
 }
 
 // loadAll iterates through the "with" list and loads
