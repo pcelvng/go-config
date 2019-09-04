@@ -53,7 +53,7 @@ func (d *Encoder) Unmarshal(dCfg, cfg interface{}) (string, error) {
 		return "", err
 	}
 
-	d.genShowMsg(100, defFieldsM, fields)
+	d.genShowMsg(175, defFieldsM, fields)
 
 	return d.showMsg, nil
 }
