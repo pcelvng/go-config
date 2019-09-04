@@ -93,7 +93,7 @@ func (d *Decoder) Unmarshal(cfigs ...interface{}) error {
 		return err
 	}
 
-	d.appendHelp(100)
+	d.appendHelp(175)
 	d.registerUsage()
 
 	return d.fs.Parse(os.Args[1:])
