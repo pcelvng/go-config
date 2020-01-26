@@ -4,6 +4,7 @@ go 1.11
 
 require (
 	github.com/davecgh/go-spew v1.1.0
+	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hydronica/toml v0.4.0
 	github.com/iancoleman/strcase v0.0.0-20190422225806-e506e3ef7365
 	github.com/jbsmith7741/go-tools v0.2.0
