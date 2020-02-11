@@ -27,6 +27,14 @@ type Node struct {
 	// can also skip. For example you may end up with fields in the same struct with
 	// Index values {1,2,4,5} because '3' is a private member.
 	Index int
+
+	// tag holds tag overrides set at runtime.
+	// Go does not allow struct tags to be modified at runtime.
+	// Setting a tag value will either set a struct tag value that
+	// didn't exist before or override an existing tag value.
+	// The "raw" struct tag values can still be accessed by
+	// accessing "Field.Tag".
+	tag map[string]string
 }
 
 // FieldName is offered for convenience in getting the
@@ -60,8 +68,22 @@ func (n *Node) Kind() reflect.Kind {
 	return n.FieldValue.Kind()
 }
 
-func (n *Node) Tag() reflect.StructTag {
-	return n.Field.Tag
+// GetTag has the same behavior as "reflect.StructTag.Get"
+// but checks first if the value exists as a runtime override first.
+func (n *Node) GetTag(key string) string {
+	if v, ok := n.tag[key]; ok {
+		return v
+	}
+
+	return n.Field.Tag.Get(key)
+}
+
+func (n *Node) SetTag(key, value string) {
+	if value == "" || key == "" {
+		return
+	}
+
+	n.tag[key] = value
 }
 
 // IsStruct is called to determine if the node represents a struct.

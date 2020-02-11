@@ -29,6 +29,11 @@ func (d *Decoder) Unmarshal(v interface{}) error {
 	return populate("", v)
 }
 
+func populateNodes(v interface{}) error {
+	// get nodes
+	nodes :=
+}
+
 // populate is a recursive function for populating struct values from env variables.
 //
 // The case-sensitive value of prefix is pre-pended to each returned expected env variable
