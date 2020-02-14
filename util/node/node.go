@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pcelvng/go-config/util"
 )
 
 // Node is an abstraction of a struct field.
@@ -35,6 +37,10 @@ type Node struct {
 	// The "raw" struct tag values can still be accessed by
 	// accessing "Field.Tag".
 	tag map[string]string
+
+	// Meta provides allowance for pre or post processing meta data
+	// for sharing information such as a resolved variable name.
+	Meta map[string]string
 }
 
 // FieldName is offered for convenience in getting the
@@ -51,6 +57,31 @@ func (n *Node) FullName() string {
 	}
 
 	return n.Prefix + "." + n.FieldName()
+}
+
+// ParentName returns the full name of the field parent if one exists.
+func (n *Node) ParentName() string {
+	return n.Prefix
+}
+
+// ParentsNames returns a list of all parents by full name in
+// order from most to least distant relative.
+//
+// Returns an empty slice if there is no lineage.
+func (n *Node) ParentsNames() []string {
+	names := make([]string, 0)
+	if n.ParentName() == "" {
+		return names
+	}
+
+	lineage := strings.Split(n.ParentName(), ".")
+
+	// First item is the most distant ancestor. Last item is the direct parent.
+	for i := 0; i < len(lineage); i++ {
+		names = append(names, strings.Join(lineage[:i+1], "."))
+	}
+
+	return names
 }
 
 // ValueType is the string value of field.Type().String()
@@ -84,6 +115,21 @@ func (n *Node) SetTag(key, value string) {
 	}
 
 	n.tag[key] = value
+}
+
+// GetBoolTag behaves like GetTag except the value is
+// parsed as a bool value and returned.
+// If the value doesn't exist then false is returned.
+// If the value does not parse then false is returned.
+func (n *Node) GetBoolTag(key string) bool {
+	bv, _ := strconv.ParseBool(n.GetTag(key))
+	return bv
+}
+
+// SetBoolTag behaves like SetTag only the tag value is correctly set as a
+// string parsable bool.
+func (n *Node) SetBoolTag(key string, value bool) {
+	n.SetTag(key, strconv.FormatBool(value))
 }
 
 // IsStruct is called to determine if the node represents a struct.
@@ -441,12 +487,13 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 // sub-parts (except private members which are skipped).
 //
 // "time.Time" is NOT included by default in the Options.NoFollow list.
+//
+// The nodes returned from "StructNodes" should not be deleted or modified except through sanctioned
+// node methods as there may be unintended side effects.
 func StructNodes(v interface{}, options Options) (nodes map[string]*Node) {
-	// "v" must be a struct pointer.
-	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
-		panic(fmt.Sprintf("'%v' must be a non-nil pointer", reflect.TypeOf(v)))
-	} else if pv := reflect.Indirect(value); pv.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("'%v' must be a non-nil pointer struct", reflect.TypeOf(v)))
+	_, err := util.IsStructPointer(v)
+	if err != nil {
+		panic(err.Error())
 	}
 
 	return getNodes("", v, options)
@@ -614,7 +661,24 @@ func followStruct(typeName string, noFollow []string) bool {
 }
 
 // Parent returns the parent struct node if one exists.
-// TODO: implement
-func Parent(child *Node, nodes map[string]*Node) (parent *Node, ok bool) {
-	return nil, false
+func Parent(child *Node, nodes map[string]*Node) (parent *Node) {
+	parent, _ = nodes[child.ParentName()]
+	return parent
+}
+
+// Parents returns all parents of the child. The returned slice
+// is ordered from oldest parent to the immediate parent of the child.
+func Parents(child *Node, nodes map[string]*Node) (parents []*Node) {
+	// First parent name is most distant ancestor.
+	for _, name := range child.ParentsNames() {
+		ancestor, ok := nodes[name]
+		if !ok {
+			// All ancestors should exist unless the node map was modified inappropriately.
+			panic(fmt.Sprintf("ancestor '%v' of '%v' should exist", name, child.FullName()))
+		}
+
+		parents = append(parents, ancestor)
+	}
+
+	return parents
 }
