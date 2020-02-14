@@ -97,15 +97,16 @@ func TestStructNodes(t *testing.T) {
 	}
 
 	ss := &SimpleStruct{}
-	nodes := StructNodes(ss, Options{
+	nodes := MakeNodes(ss, Options{
 		NoFollow:    []string{"time.Time"},
 		IgnoreTypes: []string{"node.SpecialStruct", "node.SpecialInt"},
-	})
+	}).Map()
 
-	// make sure correct number of nodes.
+	// Make sure correct number of nodes.
 	assert.Equal(t, 56, len(nodes))
 
-	// correct field names
+	// Correct field names.
+
 	assert.Equal(t, "String", nodes["String"].FieldName())
 	assert.Equal(t, "Bool", nodes["Bool"].FieldName())
 	assert.Equal(t, "Int", nodes["Int"].FieldName())
