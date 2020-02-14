@@ -25,6 +25,15 @@ func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
 	return e.marshal("", v)
 }
 
+func (e *Encoder) marshalNodes(prefix string, v interface{}) ([]byte, error) {
+	err := e.writeAll("", v)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.buf.Bytes(), nil
+}
+
 func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 	err := e.writeAll("", v)
 	if err != nil {

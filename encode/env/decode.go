@@ -25,7 +25,7 @@ func populate(v interface{}) error {
 		return err
 	}
 
-	nodes := node.StructNodes(v, node.Options{})
+	nodes := node.MakeNodes(v, node.Options{}).Map()
 	for _, nv := range nodes {
 		heritage := node.Parents(nv, nodes)
 
