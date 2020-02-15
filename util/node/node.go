@@ -24,7 +24,7 @@ func (ns *Nodes) Map() map[string]*Node {
 	return ns.nodesMap
 }
 
-func (ns *Nodes) List(i int) []*Node {
+func (ns *Nodes) List() []*Node {
 	return ns.nodesSlice
 }
 
