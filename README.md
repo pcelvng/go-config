@@ -94,6 +94,16 @@ type DBCreds struct {
 > ./myapp -db.un=myusername -db-pw=mypassword
 ```
 
+Supports slices with basic types. By default
+the value is assumed to be comma-separated. To
+override the default provide the 'sep' tag value.
+
+```sh
+type options struct {
+	Hosts []string `sep:";"`
+}
+```
+
 
 You may provide flag name aliases.
 

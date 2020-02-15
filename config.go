@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/pcelvng/go-config/internal/show"
-
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/copier"
 	"github.com/pcelvng/go-config/encode/env"

@@ -7,7 +7,26 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pcelvng/go-config/util"
 )
+
+// Nodes is a struct container for all the generated nodes.
+// It contains a map and slice representation of all nodes.
+// The map allows for named node traversal and the slice
+// maintains original struct field order.
+type Nodes struct {
+	nodesMap   map[string]*Node // Key is the dot "." separated field path.
+	nodesSlice []*Node          // Maintains same order as original config struct.
+}
+
+func (ns *Nodes) Map() map[string]*Node {
+	return ns.nodesMap
+}
+
+func (ns *Nodes) List() []*Node {
+	return ns.nodesSlice
+}
 
 // Node is an abstraction of a struct field.
 //
@@ -27,6 +46,18 @@ type Node struct {
 	// can also skip. For example you may end up with fields in the same struct with
 	// Index values {1,2,4,5} because '3' is a private member.
 	Index int
+
+	// tag holds tag overrides set at runtime.
+	// Go does not allow struct tags to be modified at runtime.
+	// Setting a tag value will either set a struct tag value that
+	// didn't exist before or override an existing tag value.
+	// The "raw" struct tag values can still be accessed by
+	// accessing "Field.Tag".
+	tag map[string]string
+
+	// Meta provides allowance for pre or post processing meta data
+	// for sharing information such as a resolved variable name.
+	Meta map[string]string
 }
 
 // FieldName is offered for convenience in getting the
@@ -45,6 +76,31 @@ func (n *Node) FullName() string {
 	return n.Prefix + "." + n.FieldName()
 }
 
+// ParentName returns the full name of the field parent if one exists.
+func (n *Node) ParentName() string {
+	return n.Prefix
+}
+
+// ParentsNames returns a list of all parents by full name in
+// order from most to least distant relative.
+//
+// Returns an empty slice if there is no lineage.
+func (n *Node) ParentsNames() []string {
+	names := make([]string, 0)
+	if n.ParentName() == "" {
+		return names
+	}
+
+	lineage := strings.Split(n.ParentName(), ".")
+
+	// First item is the most distant ancestor. Last item is the direct parent.
+	for i := 0; i < len(lineage); i++ {
+		names = append(names, strings.Join(lineage[:i+1], "."))
+	}
+
+	return names
+}
+
 // ValueType is the string value of field.Type().String()
 //
 // For reference:
@@ -60,8 +116,37 @@ func (n *Node) Kind() reflect.Kind {
 	return n.FieldValue.Kind()
 }
 
-func (n *Node) Tag() reflect.StructTag {
-	return n.Field.Tag
+// GetTag has the same behavior as "reflect.StructTag.Get"
+// but checks first if the value exists as a runtime override first.
+func (n *Node) GetTag(key string) string {
+	if v, ok := n.tag[key]; ok {
+		return v
+	}
+
+	return n.Field.Tag.Get(key)
+}
+
+func (n *Node) SetTag(key, value string) {
+	if value == "" || key == "" {
+		return
+	}
+
+	n.tag[key] = value
+}
+
+// GetBoolTag behaves like GetTag except the value is
+// parsed as a bool value and returned.
+// If the value doesn't exist then false is returned.
+// If the value does not parse then false is returned.
+func (n *Node) GetBoolTag(key string) bool {
+	bv, _ := strconv.ParseBool(n.GetTag(key))
+	return bv
+}
+
+// SetBoolTag behaves like SetTag only the tag value is correctly set as a
+// string parsable bool.
+func (n *Node) SetBoolTag(key string, value bool) {
+	n.SetTag(key, strconv.FormatBool(value))
 }
 
 // IsStruct is called to determine if the node represents a struct.
@@ -392,7 +477,7 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 	return timeFmt, nil
 }
 
-// GetStructNodes will generate a map of nodes
+// MakeNodes will generate a map of nodes
 // representing the fields in the struct including
 // all child struct fields recursively.
 //
@@ -400,10 +485,10 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 // where Field is a struct field name and ChildField is an embedded struct
 // field.
 //
-// GetStructNodes only returns public fields. Thus there is no risk
+// MakeNodes only returns public fields. Thus there is no risk
 // of editing an un-editable field and causing a panic.
 //
-// s interface{} must be a struct pointer or GetStructNodes will panic.
+// s interface{} must be a struct pointer or MakeNodes will panic.
 //
 // Certain types do not map for the purposes of reading in configuration values. Therefore
 // the following types are ignored:
@@ -414,17 +499,18 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 // - interface
 // - maps
 //
-// Note that any nil pointers will get initialized. Therefore, using "GetStructNodes"
+// Note that any nil pointers will get initialized. Therefore, using "MakeNodes"
 // has the side effect of fully initializing the provided struct and all its
 // sub-parts (except private members which are skipped).
 //
 // "time.Time" is NOT included by default in the Options.NoFollow list.
-func StructNodes(v interface{}, options Options) (nodes map[string]*Node) {
-	// "v" must be a struct pointer.
-	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
-		panic(fmt.Sprintf("'%v' must be a non-nil pointer", reflect.TypeOf(v)))
-	} else if pv := reflect.Indirect(value); pv.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("'%v' must be a non-nil pointer struct", reflect.TypeOf(v)))
+//
+// The nodes returned from "MakeNodes" should not be deleted or modified except through sanctioned
+// node methods as there may be unintended side effects.
+func MakeNodes(v interface{}, options Options) (nodes *Nodes) {
+	_, err := util.IsStructPointer(v)
+	if err != nil {
+		panic(err.Error())
 	}
 
 	return getNodes("", v, options)
@@ -447,8 +533,11 @@ type Options struct {
 //
 // "v" is already known and assumed to be a struct pointer.
 // "prefix" is simply the "parent" full path.
-func getNodes(prefix string, v interface{}, options Options) (nodes map[string]*Node) {
-	nodes = make(map[string]*Node)
+func getNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
+	nodes = &Nodes{
+		nodesMap:   make(map[string]*Node),
+		nodesSlice: make([]*Node, 0),
+	}
 	// Iterate through struct fields.
 	vStruct := reflect.ValueOf(v).Elem()
 	for i := 0; i < vStruct.NumField(); i++ {
@@ -499,13 +588,20 @@ func getNodes(prefix string, v interface{}, options Options) (nodes map[string]*
 			Index:      i,
 		}
 
-		nodes[node.FullName()] = node
+		addNode(nodes, node)
 
 		// If node is a struct then recurse (skip if it's on the noFollow type list).
 		if field.Kind() == reflect.Struct && followStruct(node.ValueType(), options.NoFollow) {
 			mergeNodes(nodes, getNodes(node.FullName(), field.Addr().Interface(), options))
 		}
 	}
+	return nodes
+}
+
+func addNode(nodes *Nodes, n *Node) *Nodes {
+	nodes.nodesMap[n.FullName()] = n
+	nodes.nodesSlice = append(nodes.nodesSlice, n)
+
 	return nodes
 }
 
@@ -570,11 +666,15 @@ func isBasicType(t reflect.Kind) bool {
 	return false
 }
 
-// mergeNodes adds "nodesB" to "nodesA" and returns "nodesA"
-func mergeNodes(nodesA, nodesB map[string]*Node) map[string]*Node {
-	for k, v := range nodesB {
-		nodesA[k] = v
+// mergeNodes adds "nodesB" to "nodesA" and returns "nodesA".
+func mergeNodes(nodesA, nodesB *Nodes) *Nodes {
+	// Handle node maps.
+	for k, v := range nodesB.nodesMap {
+		nodesA.nodesMap[k] = v
 	}
+
+	// Handle node slices.
+	nodesA.nodesSlice = append(nodesA.nodesSlice, nodesB.nodesSlice...)
 
 	return nodesA
 }
@@ -588,11 +688,29 @@ func followStruct(typeName string, noFollow []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
 // Parent returns the parent struct node if one exists.
-// TODO: implement
-func Parent(child *Node, nodes map[string]*Node) (parent *Node, ok bool) {
-	return nil, false
+func Parent(child *Node, nodes map[string]*Node) (parent *Node) {
+	parent, _ = nodes[child.ParentName()]
+	return parent
+}
+
+// Parents returns all parents of the child. The returned slice
+// is ordered from oldest parent to the immediate parent of the child.
+func Parents(child *Node, nodes map[string]*Node) (parents []*Node) {
+	// First parent name is most distant ancestor.
+	for _, name := range child.ParentsNames() {
+		ancestor, ok := nodes[name]
+		if !ok {
+			// All ancestors should exist unless the node map was modified inappropriately.
+			panic(fmt.Sprintf("ancestor '%v' of '%v' should exist", name, child.FullName()))
+		}
+
+		parents = append(parents, ancestor)
+	}
+
+	return parents
 }
