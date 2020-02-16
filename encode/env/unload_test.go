@@ -12,7 +12,7 @@ func TestEncoder_Marshal(t *testing.T) {
 		value string
 	}
 	fn := func(args ...interface{}) (interface{}, error) {
-		b, err := NewEncoder().Marshal(args[0])
+		b, err := NewUnloader().Unload(args[0])
 		return string(b), err
 	}
 	cases := trial.Cases{

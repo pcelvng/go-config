@@ -34,7 +34,7 @@ type Encoder struct {
 	showMsg string
 }
 
-// Unmarshal implements the go-config/encoding.Unmarshaler interface.
+// Load implements the go-config/encoding.Unmarshaler interface.
 func (d *Encoder) Unmarshal(dCfg, cfg interface{}) (string, error) {
 	// Fields for default values.
 	defFields, err := d.genFields(make([]*FlagField, 0), "", "", dCfg)

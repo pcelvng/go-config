@@ -152,7 +152,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	options := &MainOptions{}
 
 	d := NewDecoder()
-	err := d.Unmarshal(options)
+	err := d.Load(options)
 	assert.Nil(t, err)
 
 	// basic types
@@ -226,14 +226,14 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 		Omitprefix string `env:"omitprefix"`
 	}
 	d = NewDecoder()
-	err = d.Unmarshal(&OmitprefixStruct{})
+	err = d.Load(&OmitprefixStruct{})
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
 
 	type OmitprefixTimeStruct struct {
 		OmitprefixTime time.Time `env:"omitprefix"`
 	}
 	d = NewDecoder()
-	err = d.Unmarshal(&OmitprefixTimeStruct{})
+	err = d.Load(&OmitprefixTimeStruct{})
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
 }
 
@@ -341,8 +341,8 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //	}
 //
 //	// error if struct is not a pointer
-//	d := &Decoder{}
-//	err := d.Unmarshal(cfg)
+//	d := &Loader{}
+//	err := d.Load(cfg)
 //	assert.NotNil(t, err)
 //
 //	// set env vars
@@ -387,9 +387,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //	os.Setenv("LEVEL2_LEVEL3_FIRST_FIELD", "vLEVEL2_LEVEL3_FIRST_FIELD")
 //	os.Setenv("LEVEL2_LEVEL3_second_field", "vLEVEL2_LEVEL3_second_field")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfg = level1{}
-//	err = d.Unmarshal(&cfg)
+//	err = d.Load(&cfg)
 //	assert.Nil(t, err)
 //
 //	// make sure each field is populated as expected.
@@ -439,9 +439,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //		OmitPrefixField string `env:"omitprefix"` // not allowed returns error.
 //	}
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgErr := omitprefixNonStruct{}
-//	err = d.Unmarshal(&cfgErr)
+//	err = d.Load(&cfgErr)
 //	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
 //
 //	// Test: a comma in the env tag value gets translated directly as an env field
@@ -453,9 +453,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //
 //	os.Setenv("commafield,", "vcommafield,")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgComma := envComma{}
-//	err = d.Unmarshal(&cfgComma)
+//	err = d.Load(&cfgComma)
 //	assert.Nil(t, err)
 //	assert.Equal(t, "vcommafield,", cfgComma.CommaField)
 //
@@ -468,9 +468,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //	os.Setenv("NO_TAG_VALUE_FIELD", "vNO_TAG_VALUE_FIELD")
 //	os.Setenv("NO_TAG_VALUE_FIELD_2", "vNO_TAG_VALUE_FIELD_2")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgEnvNoValue := envNoValue{}
-//	err = d.Unmarshal(&cfgEnvNoValue)
+//	err = d.Load(&cfgEnvNoValue)
 //	assert.Nil(t, err)
 //	assert.Equal(t, "vNO_TAG_VALUE_FIELD", cfgEnvNoValue.NoTagValueField)
 //	assert.Equal(t, "vNO_TAG_VALUE_FIELD_2", cfgEnvNoValue.NoTagValueField2)
@@ -484,12 +484,12 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //
 //	os.Setenv("DEFAULT_FIELD_1", "vDEFAULT_FIELD_1")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgWithDefaults := withDefaults{
 //		DefaultField1: "default1", // should be overwritten.
 //		DefaultField2: "default2", // should persist with no env set.
 //	}
-//	err = d.Unmarshal(&cfgWithDefaults)
+//	err = d.Load(&cfgWithDefaults)
 //	assert.Nil(t, err)
 //	assert.Equal(t, "vDEFAULT_FIELD_1", cfgWithDefaults.DefaultField1)
 //	assert.Equal(t, "default2", cfgWithDefaults.DefaultField2)
@@ -501,9 +501,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //
 //	os.Setenv("BAD_BOOL_FIELD", "badvalue") // must be "true", "false", ""
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgBadBool := badBool{}
-//	err = d.Unmarshal(&cfgBadBool)
+//	err = d.Load(&cfgBadBool)
 //	assert.EqualError(t, err, "'badvalue' from 'BAD_BOOL_FIELD' cannot be set to BadBoolField (bool)")
 //
 //	// can only assign proper int value to int type.
@@ -513,9 +513,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //
 //	os.Setenv("BAD_INT_FIELD", "badvalue")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgBadInt := badInt{}
-//	err = d.Unmarshal(&cfgBadInt)
+//	err = d.Load(&cfgBadInt)
 //	assert.EqualError(t, err, "'badvalue' from 'BAD_INT_FIELD' cannot be set to BadIntField (int)")
 //
 //	// test bad uint field
@@ -525,16 +525,16 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 //
 //	os.Setenv("BAD_UINT_FIELD", "badvalue")
 //
-//	d = &Decoder{}
+//	d = &Loader{}
 //	cfgBadUint := badUint{}
-//	err = d.Unmarshal(&cfgBadUint)
+//	err = d.Load(&cfgBadUint)
 //	assert.EqualError(t, err, "'badvalue' from 'BAD_UINT_FIELD' cannot be set to BadUintField (uint)")
 //
 //	// Test: pass in pointer of non-struct
 //	otherPtr := 5
 //
-//	d = &Decoder{}
-//	err = d.Unmarshal(&otherPtr)
+//	d = &Loader{}
+//	err = d.Load(&otherPtr)
 //	assert.EqualError(t, err, "'*int' must be a non-nil pointer struct")
 //
 //	// teardown: unset envs
