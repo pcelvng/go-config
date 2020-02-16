@@ -26,6 +26,10 @@ var (
 		"flag", // flag trumps all.
 	}
 
+	reqTag      = "req"      // Field tag indicating a required field for basic validation.
+	validateTag = "validate" // See https://godoc.org/gopkg.in/go-playground/validator.v9
+	configTag   = "config"   // Globally applied config arguments. Specific config types may override contents of this value.
+
 	defaultCfg = New()
 )
 
@@ -155,10 +159,12 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 	// Generate config template.
 	if stdFlgs.GenConfig != "" {
-		err = file.Encode(os.Stdout, g.appCfg, stdFlgs.GenConfig)
+		b, err := file.Unload(g.appCfg, stdFlgs.GenConfig)
 		if err != nil {
 			return err
 		}
+
+		os.Stdout.Write(b)
 		os.Exit(0)
 	}
 
@@ -213,13 +219,14 @@ func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 	for _, w := range g.with {
 		switch w {
 		case "env":
-			err := env.NewDecoder().Unmarshal(appCfg)
+			err := env.NewDecoder().Load(appCfg)
 			if err != nil {
 				return err
 			}
 		case "toml", "yaml", "json":
 			if !doneFile && pth != "" {
-				err := file.Load(pth, appCfg)
+				fl := file.NewLoader(pth)
+				err := fl.Load(appCfg)
 				if err != nil {
 					return err
 				}

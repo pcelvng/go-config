@@ -9,14 +9,14 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func NewDecoder() *Decoder {
-	return &Decoder{}
+func NewDecoder() *Loader {
+	return &Loader{}
 }
 
-type Decoder struct{}
+type Loader struct{}
 
-// Unmarshal implements the go-config/encoding.Unmarshaler interface.
-func (d *Decoder) Unmarshal(v interface{}) error {
+// Load implements the go-config/encode.Loader interface.
+func (d *Loader) Load(v interface{}) error {
 	return populate(v)
 }
 

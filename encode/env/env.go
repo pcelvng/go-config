@@ -15,7 +15,7 @@ var (
 	ignoreTag = "ignore"
 	sepTag    = "sep" // separator for slice values.
 
-	defaultSep = ","
+	defaultSep = "," // default separator for encoding/decoding slice values.
 )
 
 // genFullName generates the full env name including the prefix.
@@ -57,6 +57,8 @@ func nodeEnvName(n *node.Node) string {
 	}
 }
 
+// isAnyIgnored checks if any members of 'nodes' is ignored.
+// if so, then returns true.
 func isAnyIgnored(nodes []*node.Node) bool {
 	for _, n := range nodes {
 		if isIgnored(n) {

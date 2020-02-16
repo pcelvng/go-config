@@ -17,7 +17,8 @@ func TestLoad(t *testing.T) {
 	fn := func(args ...interface{}) (interface{}, error) {
 		c := &SimpleStruct{}
 		f := args[0].(string)
-		err := Load(f, c)
+		fl := NewLoader(f)
+		err := fl.Load(c)
 		return c, err
 	}
 	cases := trial.Cases{

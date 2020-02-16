@@ -8,21 +8,21 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func NewEncoder() *Encoder {
-	return &Encoder{
+func NewUnloader() *Unloader {
+	return &Unloader{
 		buf: &bytes.Buffer{},
 	}
 }
 
-type Encoder struct {
+type Unloader struct {
 	buf *bytes.Buffer
 }
 
-func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
+func (e *Unloader) Unload(v interface{}) ([]byte, error) {
 	return e.marshal(v)
 }
 
-func (e *Encoder) marshal(v interface{}) ([]byte, error) {
+func (e *Unloader) marshal(v interface{}) ([]byte, error) {
 	// Write env preamble.
 	fmt.Fprint(e.buf, "#!/usr/bin/env sh\n\n")
 
@@ -85,7 +85,7 @@ func fieldString(n *node.Node) string {
 	return val
 }
 
-func (e *Encoder) doWrite(field, comment string, value interface{}) {
+func (e *Unloader) doWrite(field, comment string, value interface{}) {
 	if comment != "" {
 		comment = " # " + comment
 	}
