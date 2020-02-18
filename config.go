@@ -216,6 +216,18 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	return nil
 }
 
+func Show() error {
+	return defaultCfg.ShowValues()
+}
+
+func ShowOrDie() {
+	err := Show()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
 // parseGenPath parses the provide "GenConfig" path returning the
 // path value if it's a file path and the file extension. If no
 // extension is discerned then ext is empty.

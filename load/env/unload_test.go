@@ -126,8 +126,8 @@ export COUNT=10 # number of people in a room
 			},
 			Expected: `#!/usr/bin/env sh
 
-export TIME=2019-01-02T00:00:00Z
-export C_TIME=2019-01-02
+export TIME=2019-01-02T00:00:00Z # fmt: 2006-01-02T15:04:05Z07:00
+export C_TIME=2019-01-02 # fmt: 2006-01-02
 export WAIT_TIME=1h0m0s
 `,
 		},

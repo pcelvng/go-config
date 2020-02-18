@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hydronica/toml"
 	"github.com/pcelvng/go-config/load/env"
@@ -11,6 +12,8 @@ import (
 )
 
 func NewUnloader(ext string) *Unloader {
+	ext = strings.Trim(ext, ".")
+
 	return &Unloader{
 		ext: ext,
 	}
@@ -37,7 +40,7 @@ func (u *Unloader) Unload(vs ...interface{}) ([]byte, error) {
 
 func unload(v interface{}, ext string) ([]byte, error) {
 	switch ext {
-	case "env":
+	case "env", "sh":
 		return env.Unload(v)
 	case "json":
 		return json.MarshalIndent(v, "", "  ")

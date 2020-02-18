@@ -464,6 +464,19 @@ func genHelp(preamble string, cols int, fGroups [][]*Flag) string {
 
 			valueType := f.ValueType()
 			defValue := f.String()
+			if f.n.IsTime() {
+				fmtV := f.n.GetTag(fmtTag)
+				if fmtV == "" {
+					fmtV = node.NormTimeFormat("")
+				}
+				fmtV = "fmt: " + fmtV
+
+				if usage == "" {
+					usage = fmtV
+				} else {
+					usage = usage + " " + fmtV
+				}
+			}
 			line += usage
 			if usage != "" && defValue != "" {
 				line += " "

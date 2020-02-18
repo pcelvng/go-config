@@ -63,10 +63,30 @@ func (u *Unloader) unload(v interface{}) error {
 		}
 
 		// Write line bytes to buffer.
-		u.doWrite(genFullName(n, heritage), n.GetTag(helpTag), toStr(n))
+		u.doWrite(genFullName(n, heritage), genHelp(n), toStr(n))
 	}
 
 	return nil
+}
+
+func genHelp(n *node.Node) string {
+	helpMsg := n.GetTag(helpTag)
+
+	if n.IsTime() {
+		fmtV := n.GetTag(fmtTag)
+		if fmtV == "" {
+			fmtV = node.NormTimeFormat("")
+		}
+		fmtV = "fmt: " + fmtV
+
+		if helpMsg == "" {
+			helpMsg = fmtV
+		} else {
+			helpMsg = helpMsg + " " + fmtV
+		}
+	}
+
+	return helpMsg
 }
 
 // toStr handles the converting an existing/default field
