@@ -174,11 +174,19 @@ func (n *Node) IsDuration() bool {
 // IsTime returns true when the node represents a time.Time
 // struct.
 func (n *Node) IsTime() bool {
+	if n == nil {
+		fmt.Println("it's nil")
+		return false
+	}
 	return n.ValueType() == "time.Time"
 }
 
 func (n *Node) IsSlice() bool {
 	return n.Kind() == reflect.Slice
+}
+
+func (n *Node) IsBool() bool {
+	return n.Kind() == reflect.Bool
 }
 
 // fieldString converts basic types to a string representation
@@ -274,7 +282,12 @@ func (n *Node) TimeString(timeFmt string) string {
 	}
 
 	timeFmt = NormTimeFormat(timeFmt)
-	return n.FieldValue.Interface().(time.Time).Format(timeFmt)
+	tv := n.FieldValue.Interface().(time.Time)
+	if tv.IsZero() {
+		return ""
+	}
+
+	return tv.Format(timeFmt)
 }
 
 // SetValue attempts to convert the field value "fv" represented

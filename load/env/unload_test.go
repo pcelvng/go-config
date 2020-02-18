@@ -12,7 +12,7 @@ func TestEncoder_Marshal(t *testing.T) {
 		value string
 	}
 	fn := func(args ...interface{}) (interface{}, error) {
-		b, err := NewUnloader().Unload(args[0])
+		b, err := Unload(args[0])
 		return string(b), err
 	}
 	cases := trial.Cases{
@@ -145,7 +145,6 @@ export WAIT_TIME=1h0m0s
 				String:   trial.StringP("5"),
 				MyStruct: &mStruct{value: "c"},
 			},
-			//Expected: "INT=1\nUINT=2\nFLOAT=3.4\nSTRING=5\n",
 			Expected: `#!/usr/bin/env sh
 
 export INT=1

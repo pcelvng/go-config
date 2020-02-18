@@ -24,25 +24,36 @@ type Loader struct {
 }
 
 // Load config from file, type is determined by the file extension.
-func (fl *Loader) Load(i interface{}) error {
-	switch strings.Trim(filepath.Ext(fl.fPath), ".") {
+func (l *Loader) Load(vs ...interface{}) error {
+	for _, v := range vs {
+		err := l.load(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *Loader) load(v interface{}) error {
+	switch strings.Trim(filepath.Ext(l.fPath), ".") {
 	case "toml":
-		_, err := toml.DecodeFile(fl.fPath, i)
+		_, err := toml.DecodeFile(l.fPath, v)
 		return err
 	case "json":
-		b, err := ioutil.ReadFile(fl.fPath)
+		b, err := ioutil.ReadFile(l.fPath)
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(b, i)
+		return json.Unmarshal(b, v)
 	case "yaml", "yml":
-		b, err := ioutil.ReadFile(fl.fPath)
+		b, err := ioutil.ReadFile(l.fPath)
 		if err != nil {
 			return err
 		}
-		return yaml.Unmarshal(b, i)
+		return yaml.Unmarshal(b, v)
 	default:
-		return fmt.Errorf("unknown file type %s", filepath.Ext(fl.fPath))
+		return fmt.Errorf("unknown file type %s", filepath.Ext(l.fPath))
 	}
 }
 
