@@ -9,25 +9,35 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func NewDecoder() *Loader {
-	return &Loader{}
-}
+var (
+	loader = &Loader{}
+	Load   = loader.Load
+)
 
 type Loader struct{}
 
-// Load implements the go-config/encode.Loader interface.
-func (d *Loader) Load(v interface{}) error {
-	return populate(v)
+// Load implements the go-config/load.Loader interface.
+func (l *Loader) Load(vs ...interface{}) error {
+	for _, v := range vs {
+		err := load(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func populate(v interface{}) error {
+func load(v interface{}) error {
 	if _, err := util.IsStructPointer(v); err != nil {
 		return err
 	}
 
-	nodes := node.MakeNodes(v, node.Options{}).Map()
-	for _, n := range nodes {
-		heritage := node.Parents(n, nodes)
+	nodes := node.MakeNodes(v, node.Options{
+		NoFollow: []string{"time.Time"},
+	})
+	for _, n := range nodes.List() {
+		heritage := node.Parents(n, nodes.Map())
 
 		// Check if ignored or any parent(s) are ignored.
 		//

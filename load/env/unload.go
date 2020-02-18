@@ -8,25 +8,36 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func NewUnloader() *Unloader {
-	return &Unloader{
-		buf: &bytes.Buffer{},
+var (
+	unloader = &Unloader{}
+	Unload   = unloader.Unload
+)
+
+func (u *Unloader) Unload(vs ...interface{}) ([]byte, error) {
+	u.buf = &bytes.Buffer{}
+
+	// Write env preamble.
+	fmt.Fprint(u.buf, "#!/usr/bin/env sh\n\n")
+
+	for _, v := range vs {
+		err := u.unload(v)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	return u.buf.Bytes(), nil
 }
 
 type Unloader struct {
 	buf *bytes.Buffer
 }
 
-func (e *Unloader) Unload(v interface{}) ([]byte, error) {
-	return e.marshal(v)
-}
+func (u *Unloader) unload(v interface{}) error {
 
-func (e *Unloader) marshal(v interface{}) ([]byte, error) {
-	// Write env preamble.
-	fmt.Fprint(e.buf, "#!/usr/bin/env sh\n\n")
-
-	nodes := node.MakeNodes(v, node.Options{})
+	nodes := node.MakeNodes(v, node.Options{
+		NoFollow: []string{"time.Time"},
+	})
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 
@@ -48,22 +59,22 @@ func (e *Unloader) marshal(v interface{}) ([]byte, error) {
 
 		// Validate that "omitprefix" is not used on value fields.
 		if getEnvTag(n) == "omitprefix" {
-			return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+			return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
 		}
 
 		// Write line bytes to buffer.
-		e.doWrite(genFullName(n, heritage), n.GetTag(helpTag), fieldString(n))
+		u.doWrite(genFullName(n, heritage), n.GetTag(helpTag), toStr(n))
 	}
 
-	return e.buf.Bytes(), nil
+	return nil
 }
 
-// fieldString handles the converting an existing/default field
+// toStr handles the converting an existing/default field
 // value to a string as it would be represented as an env value.
 //
 // The value includes double quotes for fields with the ",string"
 // env tag suffix.
-func fieldString(n *node.Node) string {
+func toStr(n *node.Node) string {
 	if n.IsTime() {
 		return n.TimeString(n.GetTag(fmtTag))
 	} else if n.IsSlice() {
@@ -85,9 +96,9 @@ func fieldString(n *node.Node) string {
 	return val
 }
 
-func (e *Unloader) doWrite(field, comment string, value interface{}) {
+func (u *Unloader) doWrite(field, comment string, value interface{}) {
 	if comment != "" {
 		comment = " # " + comment
 	}
-	fmt.Fprintf(e.buf, "export %s=%v%v\n", field, value, comment)
+	fmt.Fprintf(u.buf, "export %s=%v%v\n", field, value, comment)
 }

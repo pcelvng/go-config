@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 
-	"github.com/pcelvng/go-config/internal/show"
-	//"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/copier"
-	"github.com/pcelvng/go-config/encode/env"
-	"github.com/pcelvng/go-config/encode/file"
-	flg "github.com/pcelvng/go-config/encode/flag"
+	"github.com/pcelvng/go-config/internal/show"
+	"github.com/pcelvng/go-config/load/env"
+	"github.com/pcelvng/go-config/load/file"
+	flg "github.com/pcelvng/go-config/load/flag"
 )
 
 var (
@@ -24,6 +24,15 @@ var (
 		"yaml",
 		"json",
 		"flag", // flag trumps all.
+	}
+	// validExts contains a list of all supported/valid file extensions.
+	validExts = []string{
+		"env",
+		"sh", // same output as "env" but with different file extension.
+		"toml",
+		"yaml",
+		"yml",
+		"json",
 	}
 
 	reqTag      = "req"      // Field tag indicating a required field for basic validation.
@@ -77,7 +86,7 @@ type goConfig struct {
 
 type standardFlags struct {
 	ConfigPath  string `flag:"config,c" env:"-" toml:"-"`
-	GenConfig   string `flag:"gen,g" env:"-" toml:"-"`
+	GenConfig   string `flag:"gen,g" env:"-" toml:"-"` // TODO: value can be path or extension. 'env' can also be 'sh'. 'env' or 'sh' is also attempts to make executable.
 	ShowValues  bool   `flag:"show" env:"-" toml:"-" help:"Show loaded config values and exit."`
 	ShowVersion bool   `flag:"version,v" env:"-" toml:"-" help:"Show application version and exit."`
 }
@@ -118,34 +127,34 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 	// Process special flags.
 	stdFlgs := &standardFlags{}
-	flgDecoder := flg.NewDecoder(g.helpTxt)
+	flgLdr := flg.NewLoader(g.helpTxt)
 
 	// Customize special flags help screen and options.
 	if len(g.fileExts()) > 0 {
 		msg := fmt.Sprintf(cfgPathHelp, strings.Join(g.fileExts(), "|"))
-		flgDecoder.SetHelp("ConfigPath", msg)
+		flgLdr.SetHelp("config", msg)
 	} else {
 		// no file exts - ignore the help message, not applicable.
-		flgDecoder.IgnoreField("ConfigPath")
+		flgLdr.IgnoreField("config")
 	}
 
 	if len(g.genTypes()) > 0 {
 		msg := fmt.Sprintf(genConfigHelp, strings.Join(g.genTypes(), "|"))
-		flgDecoder.SetHelp("GenConfig", msg)
+		flgLdr.SetHelp("gen", msg)
 	} else {
 		// no generate-able types - ignore the help message, not applicable.
-		flgDecoder.IgnoreField("GenConfig")
+		flgLdr.IgnoreField("gen")
 	}
 
 	if g.version == "" {
-		flgDecoder.IgnoreField("ShowVersion")
+		flgLdr.IgnoreField("show")
 	}
 
 	if itemIn("flag", g.with) == "" {
 		// flag excluded, don't render app config.
-		err = flgDecoder.Unmarshal(stdFlgs)
+		err = flgLdr.Load(stdFlgs)
 	} else {
-		err = flgDecoder.Unmarshal(stdFlgs, g.appCfg)
+		err = flgLdr.Load(stdFlgs, g.appCfg)
 	}
 	if err != nil {
 		return err
@@ -159,12 +168,29 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 	// Generate config template.
 	if stdFlgs.GenConfig != "" {
-		b, err := file.Unload(g.appCfg, stdFlgs.GenConfig)
+		pth, ext := parseGenPath(stdFlgs.GenConfig)
+		u := file.NewUnloader(ext)
+		b, err := u.Unload(g.appCfg)
 		if err != nil {
 			return err
 		}
 
-		os.Stdout.Write(b)
+		if pth != "" { // Write to file.
+			f, err := os.Create(pth)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			// TODO: consider making 'env' and 'sh' files executable.
+			_, err = f.Write(b)
+			if err != nil {
+				return err
+			}
+		} else {
+			os.Stdout.Write(b)
+		}
+
 		os.Exit(0)
 	}
 
@@ -176,8 +202,6 @@ func (g *goConfig) Load(appCfg interface{}) error {
 
 	// ShowValues
 	if stdFlgs.ShowValues {
-		//TODO: show values in the README format.
-		//spew.Dump(appCfg)
 		err = g.ShowValues()
 		if err != nil {
 			return err
@@ -190,6 +214,37 @@ func (g *goConfig) Load(appCfg interface{}) error {
 		return val.Validate()
 	}
 	return nil
+}
+
+// parseGenPath parses the provide "GenConfig" path returning the
+// path value if it's a file path and the file extension. If no
+// extension is discerned then ext is empty.
+//
+// The value can either be a standalone file extension such as "toml"
+// or it can be a full file path (with extension) to write the
+// generated config template.
+func parseGenPath(pth string) (fpth, ext string) {
+	ext = path.Ext(pth)
+	if ext == "" {
+		// maybe pth is just an extension.
+		if isValidExt(pth) {
+			return "", pth
+		}
+	}
+
+	return pth, ext
+
+}
+
+// isValidExt determines if the file extension output type is supported.
+func isValidExt(ext string) bool {
+	for _, v := range validExts {
+		if v == ext {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (g *goConfig) ShowValues() error {
@@ -219,7 +274,7 @@ func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 	for _, w := range g.with {
 		switch w {
 		case "env":
-			err := env.NewDecoder().Load(appCfg)
+			err := env.Load(appCfg)
 			if err != nil {
 				return err
 			}
@@ -234,7 +289,7 @@ func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 				doneFile = true
 			}
 		case "flag":
-			err := flg.NewDecoder("").Unmarshal(stdFlgs, appCfg)
+			err := flg.NewLoader("").Load(stdFlgs, appCfg)
 			if err != nil {
 				return err
 			}
