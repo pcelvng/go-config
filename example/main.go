@@ -49,6 +49,8 @@ func main() {
 		fmt.Printf("err: %v\n", err.Error())
 		os.Exit(0)
 	}
+
+	config.Show()
 }
 
 type options struct {
