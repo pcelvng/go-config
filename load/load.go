@@ -74,3 +74,8 @@ type Unloader interface {
 	// values.
 	Unload(...interface{}) ([]byte, error)
 }
+
+type LoadUnloader interface {
+	Loader
+	Unloader
+}

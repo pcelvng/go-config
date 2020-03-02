@@ -5,14 +5,14 @@ import (
 	"io"
 	"os"
 	"path"
-	"reflect"
 	"strings"
 
-	"github.com/jinzhu/copier"
-	"github.com/pcelvng/go-config/internal/show"
+	"github.com/pcelvng/go-config/internal/render"
+	"github.com/pcelvng/go-config/load"
 	"github.com/pcelvng/go-config/load/env"
 	"github.com/pcelvng/go-config/load/file"
 	flg "github.com/pcelvng/go-config/load/flag"
+	"github.com/pcelvng/go-config/util"
 )
 
 var (
@@ -55,14 +55,19 @@ func With(w ...string) *goConfig {
 	return defaultCfg.With(w...)
 }
 
+// RegisterLoader is a package wrapper around goConfig.CustomLoader().
+func RegisterLoader(name string, loader load.LoadUnloader) *goConfig {
+	return defaultCfg.RegisterLoader(name, loader)
+}
+
+// AddHelpTxt is a package wrapper around goConfig.AddHelp().
+func AddHelpTxt(hlpPreTxt, hlpPostTxt string) *goConfig {
+	return defaultCfg.AddHelpTxt(hlpPreTxt, hlpPostTxt)
+}
+
 // Version is a package wrapper around goConfig.Version().
 func Version(s string) *goConfig {
 	return defaultCfg.Version(s)
-}
-
-// AddHelp is a package wrapper around goConfig.AddHelp().
-func AddHelp(hlp string) *goConfig {
-	return defaultCfg.AddHelp(hlp)
 }
 
 // New creates a new config.
@@ -76,12 +81,17 @@ func New() *goConfig {
 // This does mean that the variable can probably only be set with a ":=" which would prevent
 // usage outside of a single function.
 type goConfig struct {
-	with    []string
-	version string      // Self proclaimed app version.
-	helpTxt string      // App custom help text, pre-pended to generated help text.
-	showTxt string      // Custom show text, pre-pended to generated show output.
-	dAppCfg interface{} // Copy of config containing original default values.
-	appCfg  interface{} // Original app config, ultimately containing resolved values.
+	// with is a list of loaders by name in the order they will be loaded.
+	with        []string
+	loaders     map[string]load.Loader   // map of initialized loaders.
+	unloaders   map[string]load.Unloader // map of initialized unloaders.
+	version     string
+	helpPreTxt  string // App custom help text, pre-pended to generated help menu.
+	helpPostTxt string // App custom help text appended to the generated help menu.
+	showPreTxt  string // Custom show text, pre-pended to generated show output.
+	showPostTxt string // Custom show text appended to the generated show output.
+	showNameFmt string // Field name format for the standard "show" renderer.
+	renderer    *render.Renderer
 }
 
 type standardFlags struct {
@@ -106,28 +116,41 @@ var (
 // After the configs are loaded validate the result if config is a Validator.
 //
 // Special flags are processed before loading config values.
-func (g *goConfig) Load(appCfg interface{}) error {
-	// Verify that appCfg is struct pointer. Should not be nil.
-	appCfgV := reflect.ValueOf(appCfg)
-	if appCfgV.Kind() != reflect.Ptr || appCfgV.IsNil() {
-		return fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(appCfg))
-	} else if pv := reflect.Indirect(appCfgV); pv.Kind() != reflect.Struct { // Must be pointing to a struct.
-		return fmt.Errorf("'%v' must be a non-nil pointer struct", reflect.TypeOf(appCfg))
+func (g *goConfig) Load(appCfgs ...interface{}) error {
+	var err error
+	if g == nil {
+		panic("goConfig not initialized")
 	}
 
-	// new deep copy of appCfg (to preserve defaults).
-	appCfgCopy := reflect.New(reflect.TypeOf(appCfg).Elem()).Interface()
-	err := copier.Copy(appCfgCopy, appCfg)
+	if len(appCfgs) == 0 {
+		return fmt.Errorf("nothing to load into")
+	}
+
+	// Verify all appCfgs are struct pointers.
+	for _, appCfg := range appCfgs {
+		if _, err := util.IsStructPointer(appCfg); err != nil {
+			return err
+		}
+	}
+
+	// Initialize renderer.
+	//
+	// Default values are recorded with the renderer on initialization.
+	g.renderer, err = render.New(render.Options{
+		Preamble:        g.showPreTxt,
+		Conclusion:      g.showPostTxt,
+		FieldNameFormat: g.showNameFmt,
+	}, appCfgs...)
 	if err != nil {
 		return err
 	}
 
-	g.dAppCfg = appCfgCopy
-	g.appCfg = appCfg
-
 	// Process special flags.
 	stdFlgs := &standardFlags{}
-	flgLdr := flg.NewLoader(g.helpTxt)
+	flgLdr := flg.NewLoader(flg.Options{
+		HlpPreText:  g.helpPreTxt,
+		HlpPostText: g.helpPostTxt,
+	})
 
 	// Customize special flags help screen and options.
 	if len(g.fileExts()) > 0 {
@@ -147,14 +170,17 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	if g.version == "" {
-		flgLdr.IgnoreField("show")
+		flgLdr.IgnoreField("version")
 	}
 
+	cfgs := make([]interface{}, 0)
+	cfgs = append(cfgs, stdFlgs)
+	cfgs = append(cfgs, appCfgs...)
 	if itemIn("flag", g.with) == "" {
 		// flag excluded, don't render app config.
 		err = flgLdr.Load(stdFlgs)
 	} else {
-		err = flgLdr.Load(stdFlgs, g.appCfg)
+		err = flgLdr.Load(cfgs...)
 	}
 	if err != nil {
 		return err
@@ -170,7 +196,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	if stdFlgs.GenConfig != "" {
 		pth, ext := parseGenPath(stdFlgs.GenConfig)
 		u := file.NewUnloader(ext)
-		b, err := u.Unload(g.appCfg)
+		b, err := u.Unload(appCfgs...)
 		if err != nil {
 			return err
 		}
@@ -195,7 +221,7 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	// Read in all values.
-	err = g.loadAll(stdFlgs.ConfigPath, stdFlgs, g.appCfg)
+	err = g.loadAll(stdFlgs.ConfigPath, cfgs...)
 	if err != nil {
 		return err
 	}
@@ -210,9 +236,14 @@ func (g *goConfig) Load(appCfg interface{}) error {
 	}
 
 	// Validate if struct implements validator interface.
-	if val, ok := g.appCfg.(Validator); ok {
-		return val.Validate()
+	// TODO: implement full validate tag support.
+	// TODO: validate on the 'req:"true"' struct tag.
+	for _, appCfg := range appCfgs {
+		if val, ok := appCfg.(Validator); ok {
+			return val.Validate()
+		}
 	}
+
 	return nil
 }
 
@@ -259,41 +290,44 @@ func isValidExt(ext string) bool {
 	return false
 }
 
+// ShowValues writes the values to os.Stderr.
 func (g *goConfig) ShowValues() error {
 	return g.FShowValues(os.Stderr)
 }
 
 func (g *goConfig) FShowValues(w io.Writer) error {
-	e := show.NewEncoder(g.showTxt + "\n")
-	fullText, err := e.Unmarshal(g.dAppCfg, g.appCfg)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(w, fullText)
+	b := g.renderer.Render()
+	_, err := fmt.Fprintln(w, string(b))
 
-	return nil
+	return err
 }
 
-func (g *goConfig) AddShowMsg(showTxt string) *goConfig {
-	g.showTxt = showTxt
+// AddShowTxt registers text blocks to pre-pend and append to the rendered "show" body.
+func (g *goConfig) AddShowTxt(pre, post string) *goConfig {
+	g.showPreTxt = pre
+	g.showPostTxt = post
 	return g
 }
 
 // loadAll iterates through the "with" list and loads
-// the config values into appCfg.
-func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
+// the config values into cfgs[1:] where cfgs[1:] are all the
+// appCfgs and cfgs[0] is the standard config for standard flags.
+//
+// Expects "cfgs" to contain the standard config first followed by application
+// configs.
+func (g *goConfig) loadAll(pth string, cfgs ...interface{}) error {
 	doneFile := false
 	for _, w := range g.with {
 		switch w {
 		case "env":
-			err := env.Load(appCfg)
+			err := env.Load(cfgs[1:]...)
 			if err != nil {
 				return err
 			}
 		case "toml", "yaml", "json":
 			if !doneFile && pth != "" {
 				fl := file.NewLoader(pth)
-				err := fl.Load(appCfg)
+				err := fl.Load(cfgs[1:]...)
 				if err != nil {
 					return err
 				}
@@ -301,7 +335,7 @@ func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 				doneFile = true
 			}
 		case "flag":
-			err := flg.NewLoader("").Load(stdFlgs, appCfg)
+			err := flg.NewLoader(flg.Options{}).Load(cfgs...)
 			if err != nil {
 				return err
 			}
@@ -311,10 +345,11 @@ func (g *goConfig) loadAll(pth string, stdFlgs, appCfg interface{}) error {
 	return nil
 }
 
-// AddHelp allows the user to provide a block of text that is pre-pended to the
-// generated application help screen.
-func (g *goConfig) AddHelp(hlp string) *goConfig {
-	g.helpTxt = hlp
+// AddHelp allows the user to provide supplemental pre and post help blocks
+// that are prepended and appended to the generated help menu.
+func (g *goConfig) AddHelpTxt(pre, post string) *goConfig {
+	g.helpPreTxt = pre
+	g.helpPostTxt = post
 	return g
 }
 
@@ -344,7 +379,22 @@ func (g *goConfig) With(w ...string) *goConfig {
 	return g
 }
 
-// Version sets the application version.
+// RegisterLoader registers a custom LoadUnloader.
+func (g *goConfig) RegisterLoader(name string, loader load.LoadUnloader) *goConfig {
+	if name == "" {
+		panic("loader name required")
+	}
+
+	if loader == nil {
+		panic("loader required")
+	}
+
+	return nil
+}
+
+// Version sets the application version. If a version is provided then
+// the user can specify the --version flag to show the version. Otherwise the version flag
+// is not seen on the help screen.
 func (g *goConfig) Version(s string) *goConfig {
 	g.version = s
 	return g

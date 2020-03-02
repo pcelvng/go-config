@@ -36,7 +36,7 @@ type Node struct {
 	Prefix string // The prefix name representing the parent(s).
 
 	// Actual struct field value. Can be used to get/set the currently set value.
-	// Note that "Value" will never get stored as a pointer but the actual value
+	// Note that "ValueBefore" will never get stored as a pointer but the actual value
 	// the struct field pointer points to.
 	FieldValue reflect.Value
 	Field      reflect.StructField
@@ -175,7 +175,6 @@ func (n *Node) IsDuration() bool {
 // struct.
 func (n *Node) IsTime() bool {
 	if n == nil {
-		fmt.Println("it's nil")
 		return false
 	}
 	return n.ValueType() == "time.Time"
@@ -726,4 +725,46 @@ func Parents(child *Node, nodes map[string]*Node) (parents []*Node) {
 	}
 
 	return parents
+}
+
+// FieldString defines a func type for creating a field name
+// for node n taking into account it's node heritage from heritage.
+type FieldString func(n *Node, heritage []*Node) (name string)
+
+// ValueType returns a simple string representation of the type.
+func ValueType(n *Node) string {
+	if n.IsTime() {
+		return "time"
+	}
+
+	if n.IsDuration() {
+		return "duration"
+	}
+
+	if n.IsStruct() {
+		return n.ValueType()
+	}
+
+	kind := n.FieldValue.Kind()
+	suffix := ""
+	if n.IsSlice() {
+		suffix = "s"
+		baseType := reflect.TypeOf(n.FieldValue.Interface()).Elem()
+		kind = baseType.Kind()
+	}
+
+	switch kind {
+	case reflect.String:
+		return "string" + suffix
+	case reflect.Bool:
+		return "bool" + suffix
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return "int" + suffix
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "uint" + suffix
+	case reflect.Float32, reflect.Float64:
+		return "float" + suffix
+	default:
+		return ""
+	}
 }

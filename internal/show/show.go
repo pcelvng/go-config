@@ -372,7 +372,7 @@ func genRefName(prefix, refField string) string {
 type FlagField struct {
 	RefName    string        // actual struct "." separated field name. ie "MyField.EmbeddedField".
 	Name       string        // name as it appears on command line
-	Value      reflect.Value // ref to actual reflect.Value.
+	Value      reflect.Value // ref to actual reflect.ValueBefore.
 	ValueType  string        // one of: string, bool, duration, float, time, int, uint, slice, intSlice, uintSlice, stringSlice, boolSlice
 	StrValue   string        // value (as text)
 	TimeFmt    string        // time formatting for time.Time fields.
