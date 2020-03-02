@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/pcelvng/go-config/util"
@@ -27,18 +26,24 @@ var (
 // newFlagSet creates a new flagset and sets the flags.
 // The resulting flagset is useful for both getting the flag
 // help page bytes and setting values runtime flags.
-func newFlagSet(helpPreamble string, helpMsgs map[string]string, ignore []string, vs ...interface{}) (fs *flagSet, err error) {
+func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, vs ...interface{}) (fs *flagSet, err error) {
 	if helpMsgs == nil {
 		helpMsgs = make(map[string]string)
 	}
 
 	fs = &flagSet{
-		fs:           flag.NewFlagSet(os.Args[0], flag.ExitOnError),
-		fGroups:      make([][]*Flag, 0),
-		fNames:       make(map[string]bool),
-		helpMsgs:     helpMsgs,
-		ignore:       ignore,
-		helpPreamble: helpPreamble,
+		fs:         flag.NewFlagSet(os.Args[0], flag.ExitOnError),
+		fGroups:    make([][]*Flag, 0),
+		fNames:     make(map[string]bool),
+		helpMsgs:   helpMsgs,
+		ignore:     ignore,
+		hlpPreTxt:  o.HlpPreText,
+		hlpPostTxt: o.HlpPostText,
+		hlpFunc:    o.HlpFunc,
+	}
+
+	if fs.hlpFunc == nil {
+		fs.hlpFunc = fs.defGenHelp
 	}
 
 	for _, v := range vs {
@@ -58,12 +63,14 @@ func newFlagSet(helpPreamble string, helpMsgs map[string]string, ignore []string
 }
 
 type flagSet struct {
-	fs           *flag.FlagSet
-	fGroups      [][]*Flag
-	fNames       map[string]bool
-	helpMsgs     map[string]string // manually set or override help messages. Help messages can be long.
-	ignore       []string          // list of field names to ignore -- useful for dynamically adjusting the flag list.
-	helpPreamble string
+	fs         *flag.FlagSet
+	fGroups    [][]*Flag
+	fNames     map[string]bool
+	helpMsgs   map[string]string // manually set or override help messages. Help messages can be long.
+	ignore     []string          // list of field names to ignore -- useful for dynamically adjusting the flag list.
+	hlpPreTxt  string
+	hlpPostTxt string
+	hlpFunc    GenHelpFunc
 }
 
 // SetHelp will override an existing field "help" value or create
@@ -78,7 +85,7 @@ func (fs *flagSet) setHelp(fName, helpMsg string) {
 }
 
 func (fs *flagSet) registerHelpMenu() {
-	helpMenu := genHelp(fs.helpPreamble, 175, fs.fGroups)
+	helpMenu := fs.hlpFunc(fs.fGroups)
 
 	fs.fs.Usage = func() {
 		fmt.Fprint(os.Stderr, helpMenu)
@@ -200,13 +207,13 @@ type Flag struct {
 	n *node.Node
 }
 
-// String implements flag.Value interface and gets
+// String implements flag.ValueBefore interface and gets
 // the string value of the struct field.
 func (f *Flag) String() string {
 	return toStr(f.n)
 }
 
-// Set implements flag.Value interface and sets the
+// Set implements flag.ValueBefore interface and sets the
 // struct field value.
 func (f *Flag) Set(s string) error {
 	return set(f.n, s)
@@ -223,40 +230,7 @@ func (f *Flag) Help() string {
 // ValueType returns the string representation of the type
 // in simple terms.
 func (f *Flag) ValueType() string {
-	if f.n.IsTime() {
-		return "time"
-	}
-
-	if f.n.IsDuration() {
-		return "duration"
-	}
-
-	if f.n.IsStruct() {
-		return f.n.ValueType()
-	}
-
-	kind := f.n.FieldValue.Kind()
-	suffix := ""
-	if f.n.IsSlice() {
-		suffix = "s"
-		baseType := reflect.TypeOf(f.n.FieldValue.Interface()).Elem()
-		kind = baseType.Kind()
-	}
-
-	switch kind {
-	case reflect.String:
-		return "string" + suffix
-	case reflect.Bool:
-		return "bool" + suffix
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return "int" + suffix
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "uint" + suffix
-	case reflect.Float32, reflect.Float64:
-		return "float" + suffix
-	default:
-		return ""
-	}
+	return node.ValueType(f.n)
 }
 
 // set sets the field value. It takes into account
@@ -309,7 +283,7 @@ func splitSlice(flagValue string, sep string, isString bool) []string {
 }
 
 // genFullName generates the full flag name including the prefix.
-func genFullName(n *node.Node, heritage []*node.Node) (fullName string) {
+var genFullName = func(n *node.Node, heritage []*node.Node) (fullName string) {
 	return genPrefix(append(heritage, n))
 }
 
@@ -390,7 +364,7 @@ func getFlagTag(n *node.Node) string {
 	return strings.Replace(n.GetTag(flagTag), ",string", "", -1)
 }
 
-// isFlagString returns true when the env tag value has the suffix ",string".
+// isFlagString returns true when the flag tag value has the suffix ",string".
 func isFlagString(n *node.Node) bool {
 	return strings.HasSuffix(n.GetTag(flagTag), ",string")
 }
@@ -408,10 +382,10 @@ func getSep(n *node.Node) string {
 }
 
 // toStr handles the converting an existing/default field
-// value to a string as it would be represented as an env value.
+// value to a string as it would be represented as an flag value.
 //
 // The value includes double quotes for fields with the ",string"
-// env tag suffix.
+// flag tag suffix.
 func toStr(n *node.Node) string {
 	if n.IsTime() {
 		return n.TimeString(n.GetTag(fmtTag))
@@ -434,8 +408,11 @@ func toStr(n *node.Node) string {
 	return val
 }
 
-func genHelp(preamble string, cols int, fGroups [][]*Flag) string {
-	helpMenu := strings.TrimRight(preamble, "\n") + "\n\n"
+type GenHelpFunc func([][]*Flag) string
+
+func (fs *flagSet) defGenHelp(fGroups [][]*Flag) string {
+	cols := 175
+	helpMenu := strings.TrimRight(fs.hlpPreTxt, "\n") + "\n\n"
 
 	for _, fg := range fGroups {
 		buf := new(bytes.Buffer)
@@ -502,7 +479,7 @@ func genHelp(preamble string, cols int, fGroups [][]*Flag) string {
 		helpMenu += buf.String() + "\n"
 	}
 
-	return helpMenu
+	return helpMenu + fs.hlpPostTxt
 }
 
 // wrap wraps the string `s` to a maximum width `w` with leading indent

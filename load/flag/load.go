@@ -4,22 +4,28 @@ import (
 	"os"
 )
 
-func NewLoader(helpPreamble string) *Loader {
+type Options struct {
+	HlpPreText  string      // Help text prepended to generated help menu.
+	HlpPostText string      // Help text appended to generated help menu.
+	HlpFunc     GenHelpFunc // Optional func to override the default help menu generator.
+}
+
+func NewLoader(o Options) *Loader {
 	return &Loader{
-		helpPreamble: helpPreamble,
-		helpMsgs:     make(map[string]string),
-		ignore:       make([]string, 0),
+		o:       o,
+		hlpMsgs: make(map[string]string),
+		ignore:  make([]string, 0),
 	}
 }
 
 type Loader struct {
-	helpPreamble string
-	helpMsgs     map[string]string
-	ignore       []string
+	o       Options
+	hlpMsgs map[string]string
+	ignore  []string
 }
 
 func (l *Loader) Load(vs ...interface{}) error {
-	fs, err := newFlagSet(l.helpPreamble, l.helpMsgs, l.ignore, vs...)
+	fs, err := newFlagSet(l.o, l.hlpMsgs, l.ignore, vs...)
 	if err != nil {
 		return err
 	}
@@ -44,7 +50,7 @@ func (l *Loader) Load(vs ...interface{}) error {
 //
 // SetHelp must be called before "Load" to be effective.
 func (l *Loader) SetHelp(fName, helpMsg string) {
-	l.helpMsgs[fName] = helpMsg
+	l.hlpMsgs[fName] = helpMsg
 }
 
 // IgnoreField works by addressing the struct field name as a string.

@@ -28,6 +28,36 @@ func ToSnake(name string) string {
 	return strcase.ToSnake(name)
 }
 
+// ToCamel converts "name" to CamelCase.
+// Any periods "." are removed before conversion.
+//
+// Special thanks to iancoleman's strcase library.
+// see: "github.com/iancoleman/strcase"
+func ToCamel(name string) string {
+	name = strings.ReplaceAll(name, ".", "")
+	return strcase.ToCamel(name)
+}
+
+// ToLowerCamel converts "name" to camelCase.
+// Any periods "." are removed before conversion.
+//
+// Special thanks to iancoleman's strcase library.
+// see: "github.com/iancoleman/strcase"
+func ToLowerCamel(name string) string {
+	name = strings.ReplaceAll(name, ".", "")
+	return strcase.ToLowerCamel(name)
+}
+
+// ToLowerCamel converts "name" to camelCase.
+// Any periods "." are removed before conversion.
+//
+// Special thanks to iancoleman's strcase library.
+// see: "github.com/iancoleman/strcase"
+func ToScreamingKebab(name string) string {
+	name = strings.ReplaceAll(name, ".", "")
+	return strcase.ToScreamingKebab(name)
+}
+
 // ToKebab converts "name" to snake_case.
 // Any periods "." are removed before conversion.
 //
@@ -36,6 +66,10 @@ func ToSnake(name string) string {
 func ToKebab(name string) string {
 	name = strings.ReplaceAll(name, ".", "")
 	return strcase.ToKebab(name)
+}
+
+func ToLower(name string) string {
+	return strings.ToLower(name)
 }
 
 // IsStructPointer is a utility that checks if a given
