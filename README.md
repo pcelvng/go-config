@@ -14,6 +14,10 @@ in a single location.
 
 All configuration options are controlled via struct tags. A 'struct' is the principal commanding player.
 
+# Table of Contents
+
+[Getting Started](#getting-started)
+
 # Getting Started
 
 Get the library:
@@ -602,6 +606,9 @@ When a field value is provided through more than one channel at once then the fo
 Defaults overwritten by environment variables overwritten by config file values overwritten by flags. Flag values always
 trump.
 
+# Advanced
+
+
 # Future Features Under Consideration
 
 1. Load from consul.
@@ -633,3 +640,4 @@ However, we also feel there are some good use cases such as:
 - Rotating passwords.
 - Updating configuration for front-line "always on" applications.
 - Updating shortlists such as a blacklist or whitelist without needing to reload the application.
+
