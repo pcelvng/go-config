@@ -123,7 +123,7 @@ type RenderFunc func([][]*Field) []byte
 // it marks the initial field value. The field value is marked again
 // right before rendering so that the "ValueBefore" and "ValueAfter"
 // Field values are correctly populated and rendered.
-func New(o Options, vs ...interface{}) (*Renderer, error) {
+func New(o Options, nodeGroups []*node.Nodes) (*Renderer, error) {
 	var err error
 	r := &Renderer{
 		preamble:   o.Preamble,
@@ -139,19 +139,6 @@ func New(o Options, vs ...interface{}) (*Renderer, error) {
 	}
 
 	r.renderFunc = r.defRenderFunc
-
-	// Gen node groups.
-	nodeGroups := make([]*node.Nodes, 0)
-	for _, v := range vs {
-		if _, err := util.IsStructPointer(v); err != nil {
-			return nil, err
-		}
-
-		nodes := node.MakeNodes(v, node.Options{
-			NoFollow: []string{"time.Time"},
-		})
-		nodeGroups = append(nodeGroups, nodes)
-	}
 
 	// Gen field groups.
 	r.fGrps, err = r.fieldGroups(nodeGroups)

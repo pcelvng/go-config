@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pcelvng/go-config/util/node"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -150,8 +152,10 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	}
 
 	options := &MainOptions{}
-
-	err := Load(options)
+	nss := node.MakeAllNodes(node.Options{
+		NoFollow: []string{"time.Time"},
+	}, options)
+	err := Load([]byte{}, nss)
 	assert.Nil(t, err)
 
 	// basic types
@@ -224,12 +228,16 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	type OmitprefixStruct struct {
 		Omitprefix string `env:"omitprefix"`
 	}
-	err = Load(&OmitprefixStruct{})
+	err = Load([]byte{}, node.MakeAllNodes(node.Options{
+		NoFollow: []string{"time.Time"},
+	}, &OmitprefixStruct{}))
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
 
 	type OmitprefixTimeStruct struct {
 		OmitprefixTime time.Time `env:"omitprefix"`
 	}
-	err = Load(&OmitprefixTimeStruct{})
+	err = Load([]byte{}, node.MakeAllNodes(node.Options{
+		NoFollow: []string{"time.Time"},
+	}, &OmitprefixTimeStruct{}))
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
 }

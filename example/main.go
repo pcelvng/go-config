@@ -42,7 +42,7 @@ func main() {
 	err := config.
 		With("env", "flag").
 		//Version("0.1.0").
-		AddShowTxt("example 0.1.0", "").
+		AddShowTxt("example 0.1.0\n", "").
 		AddHelpTxt(hlpPreTxt, "").
 		Load(&appCfg)
 	if err != nil {
@@ -50,7 +50,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	//config.Show()
+	config.Show()
 }
 
 type options struct {

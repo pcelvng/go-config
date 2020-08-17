@@ -13,14 +13,14 @@ var (
 	Unload   = unloader.Unload
 )
 
-func (u *Unloader) Unload(vs ...interface{}) ([]byte, error) {
+func (u *Unloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	u.buf = &bytes.Buffer{}
 
 	// Write env preamble.
 	fmt.Fprint(u.buf, "#!/usr/bin/env sh\n\n")
 
-	for _, v := range vs {
-		err := u.unload(v)
+	for _, ns := range nss {
+		err := u.unload(ns)
 		if err != nil {
 			return nil, err
 		}
@@ -33,11 +33,7 @@ type Unloader struct {
 	buf *bytes.Buffer
 }
 
-func (u *Unloader) unload(v interface{}) error {
-
-	nodes := node.MakeNodes(v, node.Options{
-		NoFollow: []string{"time.Time"},
-	})
+func (u *Unloader) unload(nodes *node.Nodes) error {
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 

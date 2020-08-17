@@ -17,6 +17,20 @@ All configuration options are controlled via struct tags. A 'struct' is the prin
 # Table of Contents
 
 [Getting Started](#getting-started)
+[Flags](#flags)
+[Environment Variables](#environment-variables)
+[Customize Help Screen](#customize-help-screen)
+[Ignoring Fields](#ignoring-fields)
+[Long Help Descriptions](#long-help-descriptions)
+[Struct Help Description](#struct-help-description)
+[Help Field Not Found](#help-field-not-found)
+[Correct Struct Tag Formation](#correct-struct-tag-formation)
+[Validation](#validation)
+[LoadOrDie](#loadordie)
+[Precedence](#precedence)
+[Advanced](#advanced)
+[Future Features Under Consideration](#future-features-under-consideration)
+[Hot Loading](#hot-loading)
 
 # Getting Started
 
@@ -184,7 +198,7 @@ You may ask for help.
 
 You may disable flags entirely by taking advantage of the "With" method described below
 
-## Environment Variables
+# Environment Variables
 
 The default environment naming converts the field name to screaming snake case. Embedded struct fields
 are namespaced using the struct field name.
@@ -290,9 +304,7 @@ export UN=; # no prefix
 export PW=; # no prefix
 ```
 
-## Other Options
-
-### Customize Help Screen 
+# Customize Help Screen 
 
 Pre-pend text to the default help screen.
 
@@ -337,7 +349,7 @@ and demonstrate go-config.
 
 ``` 
 
-### Ignoring Fields
+# Ignoring Fields
 
 You can disable a struct field entirely by providing the 'ignore' value in
 the 'config' tag.
@@ -349,7 +361,7 @@ type options struct {
 }
 ```
 
-### Long Help Descriptions
+# Long Help Descriptions
 
 For longer help descriptions you may call the "Help" method. Embedded struct methods are 
 addressed using "." in between members. Long help descriptions will likely be rendered on
@@ -379,11 +391,11 @@ type DB struct {
 }
 ```
 
-### Struct Help Description
+# Struct Help Description
 
 Help descriptions can be provided for embedded structs.
 
-### Help Field Not Found
+# Help Field Not Found
 
 If the specified variable field is not found the config will return an error.
 
@@ -422,7 +434,7 @@ type options struct {
 }
 ```
 
-### Correct Struct Tag Formation
+# Correct Struct Tag Formation
 
 Struct tags must be formed according to golang best practices. If not, then the option will not be honored.
 
@@ -461,7 +473,7 @@ type options struct {
 }
 ```
 
-### Validation 
+# Validation 
 
 You may choose to provide a Validate() hook for more complex validations and config related initialization. This is
 also convenient from the perspective of unifying where initialization/config related errors come from.
@@ -494,7 +506,7 @@ func (o *options) Validate() error {
 }
 ```
 
-### LoadOrDie
+# LoadOrDie
 
 For simplification, consider using "LoadOrDie".
 
@@ -594,7 +606,7 @@ export OTHER_STANDARD_FORMAT= ; # "2006-01-02T15:04:05.999999999Z07:00" (RFC3339
 export CUSTOM_TIME_FORMAT= ; # "2006/01/02"
 ```
 
-### Precedence
+# Precedence
 
 When a field value is provided through more than one channel at once then the following takes precedence.
 
@@ -607,6 +619,23 @@ Defaults overwritten by environment variables overwritten by config file values 
 trump.
 
 # Advanced
+
+Supported advanced features allow you to customize default behavior such as implementing as custom loader
+or implementing a custom help screen or implementing a custom output of the calling "Show()".
+
+## Custom Renderers
+
+Out of the box go-config supports the ability to dump the contents of runtime application configuration. Showing the 
+contents of provided configuration is helpful for debugging either locally during development or in production. For
+this reason go-config supports the "--show" flag which, if provided will render the final configuration values. The same
+rendering can be seen by calling the package "Show()" function which will render the final configuration and continue 
+normal application execution. 
+
+Some organizations or people may wish to customize this screen and go-config has an api to implement 
+such as feature.
+
+
+
 
 
 # Future Features Under Consideration
@@ -625,7 +654,7 @@ trump.
 12. Support for "options" flag to list and automatically validate a short list of options.
 13. Support for field level validation from "validate" field tag (https://github.com/go-validator/validator).
 
-## Hot Loading
+# Hot Loading
 
 Hot loading is the practice of re-loading configuration values after the application has started. In general, we feel 
 applications should load configuration once upon initialization and keep configuration state for the duration of 

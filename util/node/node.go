@@ -18,6 +18,7 @@ import (
 type Nodes struct {
 	nodesMap   map[string]*Node // Key is the dot "." separated field path.
 	nodesSlice []*Node          // Maintains same order as original config struct.
+	v          interface{}      // Underlying struct pointer.
 }
 
 func (ns *Nodes) Map() map[string]*Node {
@@ -26,6 +27,11 @@ func (ns *Nodes) Map() map[string]*Node {
 
 func (ns *Nodes) List() []*Node {
 	return ns.nodesSlice
+}
+
+// StructPtr returns the underlying struct pointer.
+func (ns *Nodes) StructPtr() interface{} {
+	return ns.v
 }
 
 // Node is an abstraction of a struct field.
@@ -489,6 +495,18 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 	return timeFmt, nil
 }
 
+// MakeAllNodes returns a slice of *Nodes from the provided options and
+// interfaces.
+func MakeAllNodes(o Options, vs ...interface{}) []*Nodes {
+	allNodes := make([]*Nodes, 0)
+	for _, v := range vs {
+		nodes := MakeNodes(o, v)
+		allNodes = append(allNodes, nodes)
+	}
+
+	return allNodes
+}
+
 // MakeNodes will generate a map of nodes
 // representing the fields in the struct including
 // all child struct fields recursively.
@@ -519,13 +537,13 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 //
 // The nodes returned from "MakeNodes" should not be deleted or modified except through sanctioned
 // node methods as there may be unintended side effects.
-func MakeNodes(v interface{}, options Options) (nodes *Nodes) {
+func MakeNodes(o Options, v interface{}) *Nodes {
 	_, err := util.IsStructPointer(v)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	return getNodes("", v, options)
+	return getNodes("", v, o)
 }
 
 type Options struct {
@@ -549,6 +567,7 @@ func getNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
 	nodes = &Nodes{
 		nodesMap:   make(map[string]*Node),
 		nodesSlice: make([]*Node, 0),
+		v:          v,
 	}
 	// Iterate through struct fields.
 	vStruct := reflect.ValueOf(v).Elem()

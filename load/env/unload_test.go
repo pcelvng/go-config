@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pcelvng/go-config/util/node"
+
 	"github.com/jbsmith7741/trial"
 )
 
@@ -12,7 +14,9 @@ func TestEncoder_Marshal(t *testing.T) {
 		value string
 	}
 	fn := func(args ...interface{}) (interface{}, error) {
-		b, err := Unload(args[0])
+		b, err := Unload(node.MakeAllNodes(node.Options{
+			NoFollow: []string{"time.Time"},
+		}, args[0]))
 		return string(b), err
 	}
 	cases := trial.Cases{

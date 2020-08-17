@@ -26,7 +26,7 @@ var (
 // newFlagSet creates a new flagset and sets the flags.
 // The resulting flagset is useful for both getting the flag
 // help page bytes and setting values runtime flags.
-func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, vs ...interface{}) (fs *flagSet, err error) {
+func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, nGrps []*node.Nodes) (fs *flagSet, err error) {
 	if helpMsgs == nil {
 		helpMsgs = make(map[string]string)
 	}
@@ -46,8 +46,8 @@ func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, vs ...in
 		fs.hlpFunc = fs.defGenHelp
 	}
 
-	for _, v := range vs {
-		err = fs.makeFlags(v)
+	for _, nGrp := range nGrps {
+		err = fs.makeFlags(nGrp)
 		if err != nil {
 			return nil, err
 		}
@@ -94,15 +94,10 @@ func (fs *flagSet) registerHelpMenu() {
 
 // flagSet registers flags to the underlying flagset and
 // created underlying flags.
-func (fs *flagSet) makeFlags(v interface{}) error {
-	if _, err := util.IsStructPointer(v); err != nil {
-		return err
-	}
-
+func (fs *flagSet) makeFlags(nGrp *node.Nodes) error {
 	fGroup := make([]*Flag, 0)
-	nodes := node.MakeNodes(v, node.Options{})
-	for _, n := range nodes.List() {
-		heritage := node.Parents(n, nodes.Map())
+	for _, n := range nGrp.List() {
+		heritage := node.Parents(n, nGrp.Map())
 
 		// Check if ignored or any parent(s) are ignored.
 		//

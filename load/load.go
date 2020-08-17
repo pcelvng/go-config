@@ -1,5 +1,7 @@
 package load
 
+import "github.com/pcelvng/go-config/util/node"
+
 type Loader interface {
 	// Load expects a struct pointer and will read in
 	// the config values into the underlying struct.
@@ -35,7 +37,7 @@ type Loader interface {
 	// be called before or after it. Therefore, Load doesn't not return an error if a 'req'
 	// field value is not provided since that value could have already been provided or will
 	// be provided by a call to a different Loader.
-	Load(...interface{}) error
+	Load([]byte, []*node.Nodes) error
 }
 
 type Unloader interface {
@@ -72,7 +74,7 @@ type Unloader interface {
 	//
 	// time.Duration type should be supported with default values time.Duration as string parsable
 	// values.
-	Unload(...interface{}) ([]byte, error)
+	Unload([]*node.Nodes) ([]byte, error)
 }
 
 type LoadUnloader interface {
