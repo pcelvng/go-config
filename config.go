@@ -20,43 +20,44 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-// Load is a package wrapper around goConfig.Load().
+// Load is a package wrapper around GoConfig.Load().
 func Load(c interface{}) error {
 	return defaultCfg.Load(c)
 }
 
-// LoadOrDie is a package wrapper around goConfig.LoadOrDie().
+// LoadOrDie is a package wrapper around GoConfig.LoadOrDie().
 func LoadOrDie(c interface{}) {
 	defaultCfg.LoadOrDie(c)
 }
 
-// With is a package wrapper around goConfig.With().
-func With(w ...string) *goConfig {
+// With is a package wrapper around GoConfig.With().
+func With(w ...string) *GoConfig {
 	return defaultCfg.With(w...)
 }
 
-// RegisterLoadUnloader is a package wrapper around goConfig.RegisterLoadUnloader().
-func RegisterLoadUnloader(loadUnloader *LoadUnloader) *goConfig {
+// RegisterLoadUnloader is a package wrapper around GoConfig.RegisterLoadUnloader().
+func RegisterLoadUnloader(loadUnloader *LoadUnloader) *GoConfig {
 	return defaultCfg.RegisterLoadUnloader(loadUnloader)
 }
 
-// AddHelpTxt is a package wrapper around goConfig.AddHelpTxt().
-func AddHelpTxt(preTxt, postTxt string) *goConfig {
+// AddHelpTxt is a package wrapper around GoConfig.AddHelpTxt().
+func AddHelpTxt(preTxt, postTxt string) *GoConfig {
 	return defaultCfg.AddHelpTxt(preTxt, postTxt)
 }
 
-// Version is a package wrapper around goConfig.Version().
-func Version(s string) *goConfig {
+// Version is a package wrapper around GoConfig.Version().
+func Version(s string) *GoConfig {
 	return defaultCfg.Version(s)
 }
 
-func WithShowOptions(o render.Options) *goConfig {
+func WithShowOptions(o render.Options) *GoConfig {
 	return defaultCfg.WithShowOptions(o)
 }
 
 // New creates a new config.
-func New() *goConfig {
-	cfg := &goConfig{
+func New() *GoConfig {
+	cfg := &GoConfig{
+		initialized: true,
 		lus: map[string]*LoadUnloader{
 			// Note: "flag" is not listed here - it's a special case.
 			"env": {
@@ -108,7 +109,9 @@ type LoadUnloader struct {
 	LoadUnloader load.LoadUnloader
 }
 
-type goConfig struct {
+type GoConfig struct {
+	initialized bool
+
 	// with is a list of loaders by name in the order they will be loaded.
 	with []string
 
@@ -169,7 +172,10 @@ type stdFlgs struct {
 // - post load validation by:
 //   - enforcing "validate" struct field tag directives TODO
 //   - calling the custom Validate method (if implemented) TODO
-func (g *goConfig) Load(appCfgs ...interface{}) error {
+func (g *GoConfig) Load(appCfgs ...interface{}) error {
+	if !g.initialized {
+		panic("uninitialized go config")
+	}
 	var err error
 
 	if len(appCfgs) == 0 {
@@ -258,7 +264,7 @@ func (g *goConfig) Load(appCfgs ...interface{}) error {
 //
 // If 'path' is empty then nil is returned. Otherwise either an error is returned or
 // the application exits with os.Exit(0).
-func (g *goConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
+func (g *GoConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
 	var err error
 	if pathOrName == "" {
 		return nil
@@ -314,7 +320,7 @@ func (g *goConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
 // extension. If no unloader is found because of either a non-matching
 // file extension or a non-initialized unloader then a UnloaderNotFoundErr
 // is returned with a nil load.EnvUnloader.
-func (g *goConfig) unloaderFromExt(ext string) (load.Unloader, error) {
+func (g *GoConfig) unloaderFromExt(ext string) (load.Unloader, error) {
 	for _, lu := range g.lus {
 		for _, lExt := range lu.FileExts {
 			if ext == lExt {
@@ -328,7 +334,7 @@ func (g *goConfig) unloaderFromExt(ext string) (load.Unloader, error) {
 
 // hasRegisteredExt checks if at least one LoadUnloader is registered with the provided
 // file extension.
-func (g *goConfig) hasRegisteredExt(ext string) bool {
+func (g *GoConfig) hasRegisteredExt(ext string) bool {
 	for _, lu := range g.lus {
 		for _, lExt := range lu.FileExts {
 			if lExt == ext {
@@ -346,7 +352,7 @@ func (g *goConfig) hasRegisteredExt(ext string) bool {
 //
 // It's not expected that a match is always found since one particular file
 // extension can be used over another at runtime.
-func (g *goConfig) loaderFromNameOrExt(name, ext string) load.Loader {
+func (g *GoConfig) loaderFromNameOrExt(name, ext string) load.Loader {
 	for _, lu := range g.lus {
 
 		// Match on name if no file exts defined.
@@ -371,7 +377,7 @@ func (g *goConfig) loaderFromNameOrExt(name, ext string) load.Loader {
 	return nil
 }
 
-func (g *goConfig) loaderFromExt(ext string) (load.Loader, error) {
+func (g *GoConfig) loaderFromExt(ext string) (load.Loader, error) {
 	for _, lu := range g.lus {
 		for _, lExt := range lu.FileExts {
 			if ext == lExt {
@@ -383,7 +389,7 @@ func (g *goConfig) loaderFromExt(ext string) (load.Loader, error) {
 	return nil, &LoaderNotFoundErr{lExt: ext}
 }
 
-func (g *goConfig) loaderFromName(name string) (load.Loader, error) {
+func (g *GoConfig) loaderFromName(name string) (load.Loader, error) {
 	lu, ok := g.lus[name]
 	if !ok {
 		return nil, &LoaderNotFoundErr{lExt: name}
@@ -427,13 +433,13 @@ func (ce ConfigExtNotFoundErr) Error() string {
 }
 
 // showVersion will write the version to stderr and exit.
-func (g *goConfig) showVersion() {
+func (g *GoConfig) showVersion() {
 	fmt.Fprintln(os.Stderr, g.version)
 
 	os.Exit(0)
 }
 
-func (g *goConfig) flagPreloader() *flg.Loader {
+func (g *GoConfig) flagPreloader() *flg.Loader {
 	flgLdr := flg.NewLoader(flg.Options{
 		HlpPreText:  g.helpPreTxt,
 		HlpPostText: g.helpPostTxt,
@@ -485,7 +491,7 @@ func ShowOrDie() {
 // Returns an error if the extension is not registered.
 //
 // If "pth" is empty then no path or extension is returned and err == nil.
-func (g *goConfig) parsePath(pth string) (fpth, ext string, err error) {
+func (g *GoConfig) parsePath(pth string) (fpth, ext string, err error) {
 	if pth == "" {
 		return "", "", nil
 	}
@@ -506,7 +512,7 @@ func (g *goConfig) parsePath(pth string) (fpth, ext string, err error) {
 
 // isValidExt determines if the file extension output type is supported based
 // on the current list of g.with values.
-func (g *goConfig) isValidExt(ext string) bool {
+func (g *GoConfig) isValidExt(ext string) bool {
 	for _, v := range g.allExts() {
 		if v == ext {
 			return true
@@ -517,11 +523,11 @@ func (g *goConfig) isValidExt(ext string) bool {
 }
 
 // ShowValues writes the values to os.Stderr.
-func (g *goConfig) ShowValues() error {
+func (g *GoConfig) ShowValues() error {
 	return g.FShowValues(os.Stderr)
 }
 
-func (g *goConfig) FShowValues(w io.Writer) error {
+func (g *GoConfig) FShowValues(w io.Writer) error {
 	b := g.showRenderer.Render()
 	_, err := fmt.Fprintln(w, string(b))
 
@@ -534,7 +540,7 @@ func (g *goConfig) FShowValues(w io.Writer) error {
 //
 // Expects "nGrps" to contain the standard config node group first followed by application
 // config node groups.
-func (g *goConfig) loadAll(fPath string, nGrps []*node.Nodes) error {
+func (g *GoConfig) loadAll(fPath string, nGrps []*node.Nodes) error {
 	// read in config file
 	var cfgB []byte
 	var err error
@@ -586,14 +592,14 @@ func (g *goConfig) loadAll(fPath string, nGrps []*node.Nodes) error {
 
 // AddHelp allows the user to provide supplemental pre and post help blocks
 // that are prepended and appended to the generated help menu.
-func (g *goConfig) AddHelpTxt(preTxt, postTxt string) *goConfig {
+func (g *GoConfig) AddHelpTxt(preTxt, postTxt string) *GoConfig {
 	g.helpPreTxt = preTxt
 	g.helpPostTxt = postTxt
 	return g
 }
 
 // LoadOrDie calls Load and prints an error message and exits if there is an error.
-func (g *goConfig) LoadOrDie(appCfg interface{}) {
+func (g *GoConfig) LoadOrDie(appCfg interface{}) {
 	err := g.Load(appCfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
@@ -608,7 +614,7 @@ func (g *goConfig) LoadOrDie(appCfg interface{}) {
 // custom loaders registered with RegisterLoadUnloader.
 //
 // If a loader name does not exist then With panics.
-func (g *goConfig) With(newWith ...string) *goConfig {
+func (g *GoConfig) With(newWith ...string) *GoConfig {
 	validNames := loadUnloaderNames(g.lus)
 
 	for _, w := range newWith {
@@ -653,7 +659,7 @@ func loadUnloaderNames(lus map[string]*LoadUnloader) []string {
 // will panic. Flags can be disabled by taking advantage of the "With" method and omitting "flag".
 //
 // Not providing name or LoadUnloader will panic.
-func (g *goConfig) RegisterLoadUnloader(loadUnloader *LoadUnloader) *goConfig {
+func (g *GoConfig) RegisterLoadUnloader(loadUnloader *LoadUnloader) *GoConfig {
 	// validate
 	if err := validateLoadUnloader(loadUnloader); err != nil {
 		panic(err.Error())
@@ -717,18 +723,18 @@ func sanitizeExts(lu *LoadUnloader) *LoadUnloader {
 // Version sets the application version. If a version is provided then
 // the user can specify the --version flag to show the version. Otherwise the version flag
 // is not seen on the help screen.
-func (g *goConfig) Version(v string) *goConfig {
+func (g *GoConfig) Version(v string) *GoConfig {
 	g.version = v
 	return g
 }
 
-func (g *goConfig) WithShowOptions(o render.Options) *goConfig {
+func (g *GoConfig) WithShowOptions(o render.Options) *GoConfig {
 	g.showOptions = o
 	return g
 }
 
 // allExts returns a unique list of all included file extensions excluding "flag".
-func (g *goConfig) allExts() []string {
+func (g *GoConfig) allExts() []string {
 	exts := make([]string, 0)
 
 	seen := map[string]bool{}
@@ -750,7 +756,7 @@ func (g *goConfig) allExts() []string {
 
 // allExtsAndNames returns a unique list of all the included file extensions and loader
 // names excluding "flag".
-func (g *goConfig) allExtsAndNames() []string {
+func (g *GoConfig) allExtsAndNames() []string {
 	exts := make([]string, 0)
 
 	seen := map[string]bool{}

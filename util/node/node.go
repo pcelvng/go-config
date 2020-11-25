@@ -224,8 +224,6 @@ func fieldString(value reflect.Value) string {
 	default:
 		panic(fmt.Sprintf("unexpected king to convert to string '%v'", value.Kind().String()))
 	}
-
-	return ""
 }
 
 // String fulfills the "Stringer" interface
