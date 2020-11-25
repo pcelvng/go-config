@@ -271,16 +271,18 @@ func (g *goConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
 	}
 
 	// choose unloader
-	ext := path.Ext(pathOrName)
+	ext := strings.TrimPrefix(path.Ext(pathOrName), ".")
 	var u load.Unloader
-	if ext == "" { // unloader from name
+	if ext == "" {
+		// unloader from name
 		lu, ok := g.lus[pathOrName]
 		if !ok {
 			return errors.New("unable to generate config template from unregistered name")
 		}
 
 		u = lu.LoadUnloader
-	} else { // unloader from file extension
+	} else {
+		// unloader from file extension
 		u, err = g.unloaderFromExt(ext)
 		if err != nil {
 			return err
@@ -294,24 +296,23 @@ func (g *goConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
 	}
 
 	// write
-	if pathOrName != "" {
+	if ext != "" {
 		f, err := os.Create(pathOrName)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 
-		// TODO: consider making 'env' and 'sh' files executable.
-		_, err = f.Write(b)
-		if err != nil {
+		if _, err := f.Write(b); err != nil {
 			return err
 		}
 	} else {
-		os.Stdout.Write(b)
+		if _, err := os.Stdout.Write(b); err != nil {
+			return err
+		}
 	}
 
 	os.Exit(0)
-
 	return nil
 }
 
@@ -637,7 +638,7 @@ func (g *goConfig) With(newWith ...string) *goConfig {
 }
 
 func loadUnloaderNames(lus map[string]*LoadUnloader) []string {
-	names := []string{}
+	names := []string{"flag"}
 	for name, _ := range lus {
 		names = append(names, name)
 	}
