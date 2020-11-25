@@ -88,3 +88,16 @@ func IsStructPointer(v interface{}) (bool, error) {
 
 	return true, nil
 }
+
+// AreStructPointers functions the same as IsStructPointer but for many values.
+// If 'nil' is returned then all interfaces are struct pointers.
+func AreStructPointers(vs ...interface{}) error {
+	for _, v := range vs {
+		_, err := IsStructPointer(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

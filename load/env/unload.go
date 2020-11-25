@@ -9,18 +9,18 @@ import (
 )
 
 var (
-	unloader = &Unloader{}
+	unloader = &EnvUnloader{}
 	Unload   = unloader.Unload
 )
 
-func (u *Unloader) Unload(vs ...interface{}) ([]byte, error) {
+func (u *EnvUnloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	u.buf = &bytes.Buffer{}
 
 	// Write env preamble.
 	fmt.Fprint(u.buf, "#!/usr/bin/env sh\n\n")
 
-	for _, v := range vs {
-		err := u.unload(v)
+	for _, ns := range nss {
+		err := u.unload(ns)
 		if err != nil {
 			return nil, err
 		}
@@ -29,15 +29,11 @@ func (u *Unloader) Unload(vs ...interface{}) ([]byte, error) {
 	return u.buf.Bytes(), nil
 }
 
-type Unloader struct {
+type EnvUnloader struct {
 	buf *bytes.Buffer
 }
 
-func (u *Unloader) unload(v interface{}) error {
-
-	nodes := node.MakeNodes(v, node.Options{
-		NoFollow: []string{"time.Time"},
-	})
+func (u *EnvUnloader) unload(nodes *node.Nodes) error {
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 
@@ -116,7 +112,7 @@ func toStr(n *node.Node) string {
 	return val
 }
 
-func (u *Unloader) doWrite(field, comment string, value interface{}) {
+func (u *EnvUnloader) doWrite(field, comment string, value interface{}) {
 	if comment != "" {
 		comment = " # " + comment
 	}

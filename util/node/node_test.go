@@ -97,10 +97,10 @@ func TestStructNodes(t *testing.T) {
 	}
 
 	ss := &SimpleStruct{}
-	nodes := MakeNodes(ss, Options{
+	nodes := MakeNodes(Options{
 		NoFollow:    []string{"time.Time"},
 		IgnoreTypes: []string{"node.SpecialStruct", "node.SpecialInt"},
-	}).Map()
+	}, ss).Map()
 
 	// Make sure correct number of nodes.
 	assert.Equal(t, 56, len(nodes))

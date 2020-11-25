@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/pcelvng/go-config/util/node"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,11 +27,15 @@ func TestRender(t *testing.T) {
 		IntSlice: []int{1, 2, 3},
 	}
 
+	nGrps := node.MakeAllNodes(node.Options{
+		NoFollow: []string{"time.Time"},
+	}, rm, rm)
+
 	r, err := New(Options{
 		Preamble:        "my preamble",
 		Conclusion:      "my conclusion",
 		FieldNameFormat: " as field",
-	}, rm, rm)
+	}, nGrps)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

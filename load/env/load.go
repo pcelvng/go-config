@@ -5,21 +5,22 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pcelvng/go-config/util"
 	"github.com/pcelvng/go-config/util/node"
 )
 
 var (
-	loader = &Loader{}
+	loader = &EnvLoader{}
 	Load   = loader.Load
 )
 
-type Loader struct{}
+type EnvLoader struct{}
 
-// Load implements the go-config/load.Loader interface.
-func (l *Loader) Load(vs ...interface{}) error {
-	for _, v := range vs {
-		err := load(v)
+// Load implements the go-config/load.EnvLoader interface.
+//
+// TODO: load env vars from a file (i.e. from bytes)
+func (l *EnvLoader) Load(_ []byte, nss []*node.Nodes) error {
+	for _, ns := range nss {
+		err := load(ns)
 		if err != nil {
 			return err
 		}
@@ -28,14 +29,7 @@ func (l *Loader) Load(vs ...interface{}) error {
 	return nil
 }
 
-func load(v interface{}) error {
-	if _, err := util.IsStructPointer(v); err != nil {
-		return err
-	}
-
-	nodes := node.MakeNodes(v, node.Options{
-		NoFollow: []string{"time.Time"},
-	})
+func load(nodes *node.Nodes) error {
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 

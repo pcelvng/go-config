@@ -2,6 +2,8 @@ package flag
 
 import (
 	"os"
+
+	"github.com/pcelvng/go-config/util/node"
 )
 
 type Options struct {
@@ -24,8 +26,8 @@ type Loader struct {
 	ignore  []string
 }
 
-func (l *Loader) Load(vs ...interface{}) error {
-	fs, err := newFlagSet(l.o, l.hlpMsgs, l.ignore, vs...)
+func (l *Loader) Load(nGrps []*node.Nodes) error {
+	fs, err := newFlagSet(l.o, l.hlpMsgs, l.ignore, nGrps)
 	if err != nil {
 		return err
 	}
@@ -36,7 +38,7 @@ func (l *Loader) Load(vs ...interface{}) error {
 	argList := os.Args[1:]
 	if len(argList) > 0 && (argList[0] == "help" || argList[0] == "h") {
 		fs.fs.Usage()
-		os.Exit(2)
+		os.Exit(0)
 	}
 
 	return fs.fs.Parse(os.Args[1:])
