@@ -26,6 +26,40 @@ var (
 	defaultSep = ","
 )
 
+// New should be called before struct values values are populated as
+// it marks the initial field value. The field value is marked again
+// right before rendering so that the "ValueBefore" and "ValueAfter"
+// Field values are correctly populated and rendered.
+func New(o Options, nGrps []*node.Nodes) (*Renderer, error) {
+	var err error
+	r := &Renderer{
+		preamble:   o.Preamble,
+		conclusion: o.Conclusion,
+	}
+
+	// field name generator.
+	ng := defNameGenerator{}
+	ng.nameFrom, ng.formatAs = parseFieldNameFormat(o.FieldNameFormat)
+	r.nameFunc = ng.genFieldName
+
+	// render func
+	r.renderFunc = defaultRenderer
+	if o.RenderFunc != nil {
+		r.renderFunc = o.RenderFunc
+	}
+
+	// Create field groups.
+	r.fGrps, err = r.fieldGroups(nGrps)
+	if err != nil {
+		return nil, err
+	}
+
+	// Record initial field values.
+	r.recordVals()
+
+	return r, nil
+}
+
 // Field represents a single field to render.
 type Field struct {
 	Name        string
@@ -99,15 +133,7 @@ type Options struct {
 	//
 	// Can also provide:
 	// - "[env,flag,json,toml,yaml,field] as [snake,kebab,screaming,
-	FieldNameFormat string // TODO: allow user to set a custom name formatter func.
-
-	// FieldNameFunc is a field name generator override function. If not provided
-	// the default field name generator is used.
-	//
-	// Field names are generated on initialization of Renderer.
-	//
-	// Providing a custom FieldNameFunc renders a "FieldNameFormat" value useless.
-	FieldNameFunc FieldNameFunc
+	FieldNameFormat string
 
 	// RenderFunc is optional and if provided overrides the default render
 	// function. If a custom RenderFunc is provided then "Preamble" and "Conclusion" are
@@ -115,54 +141,19 @@ type Options struct {
 	RenderFunc RenderFunc
 }
 
-type FieldNameFunc func(n *node.Node, heritage []*node.Node) string
-
-type RenderFunc func([][]*Field) []byte
-
-// New should be called before struct values values are populated as
-// it marks the initial field value. The field value is marked again
-// right before rendering so that the "ValueBefore" and "ValueAfter"
-// Field values are correctly populated and rendered.
-func New(o Options, nGrps []*node.Nodes) (*Renderer, error) {
-	var err error
-	r := &Renderer{
-		preamble:   o.Preamble,
-		conclusion: o.Conclusion,
-	}
-
-	// Field name generator func.
-	ng := defNameGenerator{}
-	ng.nameFrom, ng.formatAs = parseFieldNameFormat(o.FieldNameFormat)
-	r.nameFunc = ng.genFieldName
-	if o.FieldNameFunc != nil {
-		r.nameFunc = o.FieldNameFunc
-	}
-
-	r.renderFunc = r.defRenderFunc
-
-	// Gen field groups.
-	r.fGrps, err = r.fieldGroups(nGrps)
-	if err != nil {
-		return nil, err
-	}
-
-	// Record initial field values.
-	r.recordVals()
-
-	return r, nil
-}
+type RenderFunc func(preamble, conclusion string, fieldGroups [][]*Field) []byte
 
 type Renderer struct {
 	preamble   string     // Prepended string used in the default renderer.
 	conclusion string     // Appended string used in the default renderer.
 	fGrps      [][]*Field // One field group per config struct passed.
 	renderFunc RenderFunc
-	nameFunc   FieldNameFunc
+	nameFunc   func(n *node.Node, heritage []*node.Node) string
 }
 
 func (r *Renderer) Render() []byte {
 	r.recordVals() // Record final string values.
-	return r.renderFunc(r.fGrps)
+	return r.renderFunc(r.preamble, r.conclusion, r.fGrps)
 }
 
 // recordVals records the current node string values.
@@ -180,16 +171,16 @@ func (r *Renderer) recordVals() {
 	}
 }
 
-// defRenderFunc is the default render function.
-func (r *Renderer) defRenderFunc(fGrps [][]*Field) []byte {
+// defaultRenderer is the default render function.
+func defaultRenderer(preamble, conclusion string, fieldGroups [][]*Field) []byte {
 	cols := 175
 	buf := new(bytes.Buffer)
 
-	if r.preamble != "" {
-		fmt.Fprintln(buf, r.preamble)
+	if preamble != "" {
+		fmt.Fprintln(buf, preamble)
 	}
 
-	for _, fg := range fGrps {
+	for _, fg := range fieldGroups {
 		lines := make([]string, 0, len(fg))
 		maxlen := 0
 		for _, f := range fg {
@@ -242,8 +233,8 @@ func (r *Renderer) defRenderFunc(fGrps [][]*Field) []byte {
 		fmt.Fprintln(buf, "") // New line between groups.
 	}
 
-	if r.conclusion != "" {
-		fmt.Fprintln(buf, r.conclusion)
+	if conclusion != "" {
+		fmt.Fprintln(buf, conclusion)
 	}
 
 	return buf.Bytes()
