@@ -123,7 +123,7 @@ type RenderFunc func([][]*Field) []byte
 // it marks the initial field value. The field value is marked again
 // right before rendering so that the "ValueBefore" and "ValueAfter"
 // Field values are correctly populated and rendered.
-func New(o Options, nodeGroups []*node.Nodes) (*Renderer, error) {
+func New(o Options, nGrps []*node.Nodes) (*Renderer, error) {
 	var err error
 	r := &Renderer{
 		preamble:   o.Preamble,
@@ -141,7 +141,7 @@ func New(o Options, nodeGroups []*node.Nodes) (*Renderer, error) {
 	r.renderFunc = r.defRenderFunc
 
 	// Gen field groups.
-	r.fGrps, err = r.fieldGroups(nodeGroups)
+	r.fGrps, err = r.fieldGroups(nGrps)
 	if err != nil {
 		return nil, err
 	}

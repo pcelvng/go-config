@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	unloader = &Unloader{}
+	unloader = &EnvUnloader{}
 	Unload   = unloader.Unload
 )
 
-func (u *Unloader) Unload(nss []*node.Nodes) ([]byte, error) {
+func (u *EnvUnloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	u.buf = &bytes.Buffer{}
 
 	// Write env preamble.
@@ -29,11 +29,11 @@ func (u *Unloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	return u.buf.Bytes(), nil
 }
 
-type Unloader struct {
+type EnvUnloader struct {
 	buf *bytes.Buffer
 }
 
-func (u *Unloader) unload(nodes *node.Nodes) error {
+func (u *EnvUnloader) unload(nodes *node.Nodes) error {
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 
@@ -112,7 +112,7 @@ func toStr(n *node.Node) string {
 	return val
 }
 
-func (u *Unloader) doWrite(field, comment string, value interface{}) {
+func (u *EnvUnloader) doWrite(field, comment string, value interface{}) {
 	if comment != "" {
 		comment = " # " + comment
 	}

@@ -38,7 +38,7 @@ func (l *Loader) Load(nGrps []*node.Nodes) error {
 	argList := os.Args[1:]
 	if len(argList) > 0 && (argList[0] == "help" || argList[0] == "h") {
 		fs.fs.Usage()
-		os.Exit(2)
+		os.Exit(0)
 	}
 
 	return fs.fs.Parse(os.Args[1:])

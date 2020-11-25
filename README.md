@@ -425,15 +425,6 @@ type options struct {
 
 ```
 
-You may specify if a field is required. By default, fields are not required.
-
-```sh
-type options struct {
-    Host    string `req:"true"`
-    DB      DB     `req:"false"` // Allowed but unnessary.
-}
-```
-
 # Correct Struct Tag Formation
 
 Struct tags must be formed according to golang best practices. If not, then the option will not be honored.
@@ -441,12 +432,12 @@ Struct tags must be formed according to golang best practices. If not, then the 
 ```sh
 type options struct {
     // Bad
-    DB      string     `req` // Must provide the tag name followed by a colon and the value in quotes (no spaces).
+    DB      string     `env` // Must provide the tag name followed by a colon and the value in quotes (no spaces).
 }
 
 type options struct {
     // Good
-    DB      string     `req:"true"` // Must provide the tag name followed by a colon and the value in quotes (no spaces).
+    DB      string     `env:"DATABASE_NAME"` // Must provide the tag name followed by a colon and the value in quotes (no spaces).
 }
 ```
 
@@ -492,7 +483,7 @@ func main() {
 }
 
 type options struct {
-    Username string `req:"true"`
+    Username string `validate:"required"`
     Password string
 }
 

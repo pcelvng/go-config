@@ -9,16 +9,16 @@ import (
 )
 
 var (
-	loader = &Loader{}
+	loader = &EnvLoader{}
 	Load   = loader.Load
 )
 
-type Loader struct{}
+type EnvLoader struct{}
 
-// Load implements the go-config/load.Loader interface.
+// Load implements the go-config/load.EnvLoader interface.
 //
 // TODO: load env vars from a file (i.e. from bytes)
-func (l *Loader) Load(_ []byte, nss []*node.Nodes) error {
+func (l *EnvLoader) Load(_ []byte, nss []*node.Nodes) error {
 	for _, ns := range nss {
 		err := load(ns)
 		if err != nil {
