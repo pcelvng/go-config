@@ -9,13 +9,13 @@ import (
 	"path"
 	"strings"
 
-	"github.com/pcelvng/go-config/internal/render"
 	"github.com/pcelvng/go-config/load"
 	"github.com/pcelvng/go-config/load/env"
 	flg "github.com/pcelvng/go-config/load/flag"
 	"github.com/pcelvng/go-config/load/json"
 	"github.com/pcelvng/go-config/load/toml"
 	"github.com/pcelvng/go-config/load/yaml"
+	"github.com/pcelvng/go-config/render"
 	"github.com/pcelvng/go-config/util"
 	"github.com/pcelvng/go-config/util/node"
 )
@@ -48,6 +48,10 @@ func AddHelpTxt(preTxt, postTxt string) *goConfig {
 // Version is a package wrapper around goConfig.Version().
 func Version(s string) *goConfig {
 	return defaultCfg.Version(s)
+}
+
+func WithShowOptions(o render.Options) *goConfig {
+	return defaultCfg.WithShowOptions(o)
 }
 
 // New creates a new config.
@@ -85,8 +89,9 @@ func New() *goConfig {
 			// "..." <- custom names are loaded here by default.
 			"flag", // flag trumps all.
 		},
-		flgLoader: flg.NewLoader(flg.Options{}),
-		stdFlgs:   &stdFlgs{},
+		flgLoader:   flg.NewLoader(flg.Options{}),
+		stdFlgs:     &stdFlgs{},
+		showOptions: render.Options{},
 	}
 
 	return cfg
@@ -119,24 +124,17 @@ type goConfig struct {
 	// config templates and determining which config file to load from.
 	stdFlgs *stdFlgs
 
-	// renderer contains an instance of the renderer for customizing the display of
+	showOptions render.Options
+
+	// showRenderer contains an instance of the showRenderer for customizing the display of
 	// loaded values.
-	renderer *render.Renderer
+	showRenderer *render.Renderer
 
 	// helpPreTxt contains text prepended to the help screen.
 	helpPreTxt string
 
 	// helpPostTxt contains text appended to the help screen.
 	helpPostTxt string
-
-	// showPreTxt contains text prepended to the output of calling "ShowValues".
-	showPreTxt string
-
-	// showPostTxt contains text appended to the output of calling "ShowValues".
-	showPostTxt string
-
-	// showNameFmt stores the field name format for the standard renderer.
-	showNameFmt string
 
 	// version contains the application name and version as provided by calling "Version".
 	version string
@@ -188,15 +186,11 @@ func (g *goConfig) Load(appCfgs ...interface{}) error {
 		NoFollow: []string{"time.Time"},
 	}, cfgs...)
 
-	// Initialize renderer.
+	// Initialize showRenderer.
 	//
-	// Default values are recorded with the renderer on initialization.
+	// Default values are recorded with the showRenderer on initialization.
 	// Standard flags are excluded.
-	g.renderer, err = render.New(render.Options{
-		Preamble:        g.showPreTxt,
-		Conclusion:      g.showPostTxt,
-		FieldNameFormat: g.showNameFmt,
-	}, nGrps[1:])
+	g.showRenderer, err = render.New(g.showOptions, nGrps[1:])
 	if err != nil {
 		return err
 	}
@@ -528,17 +522,10 @@ func (g *goConfig) ShowValues() error {
 }
 
 func (g *goConfig) FShowValues(w io.Writer) error {
-	b := g.renderer.Render()
+	b := g.showRenderer.Render()
 	_, err := fmt.Fprintln(w, string(b))
 
 	return err
-}
-
-// AddShowTxt registers text blocks to pre-pend and append to the rendered "show" body.
-func (g *goConfig) AddShowTxt(pre, post string) *goConfig {
-	g.showPreTxt = pre
-	g.showPostTxt = post
-	return g
 }
 
 // loadAll iterates through the "with" list and loads
@@ -732,6 +719,11 @@ func sanitizeExts(lu *LoadUnloader) *LoadUnloader {
 // is not seen on the help screen.
 func (g *goConfig) Version(v string) *goConfig {
 	g.version = v
+	return g
+}
+
+func (g *goConfig) WithShowOptions(o render.Options) *goConfig {
+	g.showOptions = o
 	return g
 }
 

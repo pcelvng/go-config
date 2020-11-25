@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/pcelvng/go-config/render"
+
 	"github.com/pcelvng/go-config"
 )
 
@@ -42,7 +44,12 @@ func main() {
 	err := config.
 		With("env", "flag").
 		//Version("0.1.0").
-		AddShowTxt("example 0.1.0\n", "").
+		WithShowOptions(render.Options{
+			Preamble:        "example 0.1.0\n",
+			Conclusion:      "",
+			FieldNameFormat: "env",
+			RenderFunc:      customRenderer,
+		}).
 		AddHelpTxt(hlpPreTxt, "").
 		Load(&appCfg)
 	if err != nil {
@@ -54,7 +61,7 @@ func main() {
 }
 
 type options struct {
-	Host       string
+	Host       string `env:"MY_CUSTOM_HOST"`
 	DB         *DB
 	MyInt      int
 	MyInt64    int64
@@ -81,4 +88,8 @@ type options struct {
 type DB struct {
 	Username string `req:"true"`
 	Password string `env:"PW" show:"false" help:"the password"`
+}
+
+func customRenderer(pre, conc string, fieldGroups [][]*render.Field) []byte {
+	return []byte("custom renderer")
 }
