@@ -13,37 +13,27 @@ import (
 )
 
 var (
-	flagTag   = "flag"   // Expected flag struct tag name.
-	configTag = "config" // Expected general config values (only "ignore" supported ATM).
-	fmtTag    = "fmt"
-	helpTag   = "help" // Only used for encoding.
-	ignoreTag = "ignore"
-	sepTag    = "sep" // separator for slice values.
+	flagTag = "flag"
+	fmtTag  = "fmt"
+	helpTag = "help"
+	sepTag  = "sep"
 
-	defaultSep = "," // default separator for encoding/decoding slice values.
+	defaultSep = ","
 )
 
 // newFlagSet creates a new flagset and sets the flags.
 // The resulting flagset is useful for both getting the flag
 // help page bytes and setting values runtime flags.
-func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, nGrps []*node.Nodes) (fs *flagSet, err error) {
-	if helpMsgs == nil {
-		helpMsgs = make(map[string]string)
-	}
-
+func newFlagSet(o Options, nGrps []*node.Nodes) (fs *flagSet, err error) {
 	fs = &flagSet{
-		fs:         flag.NewFlagSet(os.Args[0], flag.ExitOnError),
-		fGroups:    make([][]*Flag, 0),
-		fNames:     make(map[string]bool),
-		helpMsgs:   helpMsgs,
-		ignore:     ignore,
-		hlpPreTxt:  o.HlpPreText,
-		hlpPostTxt: o.HlpPostText,
-		hlpFunc:    o.HlpFunc,
+		fs:      flag.NewFlagSet(os.Args[0], flag.ExitOnError),
+		fGroups: make([][]*Flag, 0),
+		fNames:  make(map[string]bool),
+		options: o,
 	}
 
-	if fs.hlpFunc == nil {
-		fs.hlpFunc = fs.defGenHelp
+	if fs.options.HelpFunc == nil {
+		fs.options.HelpFunc = defaultGenHelp
 	}
 
 	for _, nGrp := range nGrps {
@@ -63,14 +53,10 @@ func newFlagSet(o Options, helpMsgs map[string]string, ignore []string, nGrps []
 }
 
 type flagSet struct {
-	fs         *flag.FlagSet
-	fGroups    [][]*Flag
-	fNames     map[string]bool
-	helpMsgs   map[string]string // manually set or override help messages. Help messages can be long.
-	ignore     []string          // list of field names to ignore -- useful for dynamically adjusting the flag list.
-	hlpPreTxt  string
-	hlpPostTxt string
-	hlpFunc    GenHelpFunc
+	fs      *flag.FlagSet
+	fGroups [][]*Flag
+	fNames  map[string]bool
+	options Options
 }
 
 // SetHelp will override an existing field "help" value or create
@@ -80,12 +66,12 @@ type flagSet struct {
 // to struct fields a user does not control.
 //
 // SetHelp must be called before "Load" to be effective.
-func (fs *flagSet) setHelp(fName, helpMsg string) {
-	fs.helpMsgs[fName] = helpMsg
-}
+//func (fs *flagSet) setHelp(fName, helpMsg string) {
+//	fs.helpMsgs[fName] = helpMsg
+//}
 
 func (fs *flagSet) registerHelpMenu() {
-	helpMenu := fs.hlpFunc(fs.fGroups)
+	helpMenu := fs.options.HelpFunc(fs.options.HelpPreamble, fs.options.HelpPostamble, fs.fGroups)
 
 	fs.fs.Usage = func() {
 		fmt.Fprint(os.Stderr, helpMenu)
@@ -133,10 +119,9 @@ func (fs *flagSet) makeFlags(nGrp *node.Nodes) error {
 			Alias: alias,
 			n:     n,
 		}
-		f.helpOverride = fs.helpMsgs[f.Name]
 
 		// Check if is on ignore list.
-		if fs.isIgnored(f.Name) {
+		if isIgnored(n) {
 			continue
 		}
 
@@ -184,20 +169,9 @@ func (fs *flagSet) register(f *Flag) {
 	}
 }
 
-func (fs *flagSet) isIgnored(fName string) bool {
-	for _, v := range fs.ignore {
-		if fName == v {
-			return true
-		}
-	}
-
-	return false
-}
-
 type Flag struct {
-	Name         string // full flag name
-	Alias        string // flag alias - if exists
-	helpOverride string
+	Name  string // full flag name
+	Alias string // flag alias - if exists
 
 	n *node.Node
 }
@@ -215,11 +189,7 @@ func (f *Flag) Set(s string) error {
 }
 
 func (f *Flag) Help() string {
-	if f.helpOverride == "" {
-		return f.n.GetTag(helpTag)
-	}
-
-	return f.helpOverride
+	return f.n.GetTag(helpTag)
 }
 
 // ValueType returns the string representation of the type
@@ -336,17 +306,8 @@ func isAnyIgnored(nodes []*node.Node) bool {
 }
 
 // isIgnored checks if the node is ignored.
-//
-// A node is ignored when one or more of the following struct
-// field tag cases are met:
-// - `ignore:"true"`
-// - `config:"ignore"`
-// - `flag:"-"`
 func isIgnored(n *node.Node) bool {
-	// "ignore" tag or "config" tag has ("ignore" value)
-	if n.GetBoolTag(ignoreTag) ||
-		n.GetTag(configTag) == "ignore" ||
-		getFlagTag(n) == "-" {
+	if getFlagTag(n) == "-" {
 		return true
 	}
 
@@ -403,11 +364,11 @@ func toStr(n *node.Node) string {
 	return val
 }
 
-type GenHelpFunc func([][]*Flag) string
+type GenHelpFunc func(preample, conclusion string, fGrps [][]*Flag) string
 
-func (fs *flagSet) defGenHelp(fGroups [][]*Flag) string {
+func defaultGenHelp(preamble, conclusion string, fGroups [][]*Flag) string {
 	cols := 175
-	helpMenu := strings.TrimRight(fs.hlpPreTxt, "\n") + "\n\n"
+	helpMenu := strings.TrimRight(preamble, "\n") + "\n\n"
 
 	for _, fg := range fGroups {
 		buf := new(bytes.Buffer)
@@ -474,7 +435,7 @@ func (fs *flagSet) defGenHelp(fGroups [][]*Flag) string {
 		helpMenu += buf.String() + "\n"
 	}
 
-	return helpMenu + fs.hlpPostTxt
+	return helpMenu + conclusion
 }
 
 // wrap wraps the string `s` to a maximum width `w` with leading indent

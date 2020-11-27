@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/pcelvng/go-config/load/flag"
+
 	"github.com/pcelvng/go-config/render"
 
 	"github.com/pcelvng/go-config"
@@ -15,6 +17,8 @@ var (
 
 example is an example application to demonstrate the simplicity and usefulness 
 of basic config.
+`
+	hlpPostTxt = `That's all there is to be said.
 `
 )
 
@@ -43,14 +47,17 @@ func main() {
 
 	err := config.
 		With("env", "flag").
-		//Version("0.1.0").
+		Version("0.1.0").
 		WithShowOptions(render.Options{
 			Preamble:        "example 0.1.0\n",
-			Conclusion:      "",
+			Postamble:       "",
 			FieldNameFormat: "env",
-			RenderFunc:      customRenderer,
+			//RenderFunc:      customRenderer,
 		}).
-		AddHelpTxt(hlpPreTxt, "").
+		WithFlagOptions(flag.Options{
+			HelpPreamble:  hlpPreTxt,
+			HelpPostamble: hlpPostTxt,
+		}).
 		Load(&appCfg)
 	if err != nil {
 		fmt.Printf("err: %v\n", err.Error())
@@ -86,7 +93,7 @@ type options struct {
 }
 
 type DB struct {
-	Username string `req:"true"`
+	Username string
 	Password string `env:"PW" show:"false" help:"the password"`
 }
 
