@@ -18,9 +18,9 @@ type EnvLoader struct{}
 // Load implements the go-config/load.EnvLoader interface.
 //
 // TODO: load env vars from a file (i.e. from bytes)
-func (l *EnvLoader) Load(_ []byte, nss []*node.Nodes) error {
-	for _, ns := range nss {
-		err := load(ns)
+func (l *EnvLoader) Load(_ []byte, nGrps []*node.Nodes) error {
+	for _, nGrp := range nGrps {
+		err := load(nGrp)
 		if err != nil {
 			return err
 		}
@@ -36,7 +36,7 @@ func load(nodes *node.Nodes) error {
 		// Check if ignored or any parent(s) are ignored.
 		//
 		// Note that if this node or any ancestor node is ignored
-		// then the res	ult is the same - this node is ignored.
+		// then the result is the same - this node is ignored.
 		if isAnyIgnored(append(heritage, n)) {
 			continue
 		}

@@ -173,6 +173,10 @@ func (n *Node) IsStruct() bool {
 	return n.Kind() == reflect.Struct
 }
 
+func (n *Node) IsString() bool {
+	return n.Kind() == reflect.String
+}
+
 func (n *Node) IsDuration() bool {
 	return n.ValueType() == "time.Duration"
 }
@@ -188,6 +192,15 @@ func (n *Node) IsTime() bool {
 
 func (n *Node) IsSlice() bool {
 	return n.Kind() == reflect.Slice
+}
+
+func (n *Node) IsStringSlice() bool {
+	if n.Kind() == reflect.Slice {
+		baseType := reflect.TypeOf(n.FieldValue.Interface()).Elem()
+		return baseType.Kind() == reflect.String
+	}
+
+	return false
 }
 
 func (n *Node) IsBool() bool {
