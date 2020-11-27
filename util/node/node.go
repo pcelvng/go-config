@@ -34,6 +34,21 @@ func (ns *Nodes) StructPtr() interface{} {
 	return ns.v
 }
 
+// SetTag will attempt to set fieldName Node tag with key and value.
+// An error is returned if the node is not found.
+//
+// Note that fieldName is the dot "." separated field path.
+func (ns *Nodes) SetTag(fieldName, key, value string) error {
+	n, ok := ns.nodesMap[fieldName]
+	if !ok {
+		return errors.New("unable to set field tag the field is not found by name " + fieldName)
+	}
+
+	n.SetTag(key, value)
+
+	return nil
+}
+
 // Node is an abstraction of a struct field.
 //
 // It contains a reference to the actual field value among other useful
@@ -61,9 +76,9 @@ type Node struct {
 	// accessing "Field.Tag".
 	tag map[string]string
 
-	// Meta provides allowance for pre or post processing meta data
+	// meta provides allowance for pre or post processing meta data
 	// for sharing information such as a resolved variable name.
-	Meta map[string]string
+	meta map[string]string
 }
 
 // FieldName is offered for convenience in getting the
@@ -122,6 +137,14 @@ func (n *Node) Kind() reflect.Kind {
 	return n.FieldValue.Kind()
 }
 
+func (n *Node) SetTag(key, value string) {
+	if value == "" || key == "" {
+		return
+	}
+
+	n.tag[key] = value
+}
+
 // GetTag has the same behavior as "reflect.StructTag.Get"
 // but checks first if the value exists as a runtime override first.
 func (n *Node) GetTag(key string) string {
@@ -132,12 +155,16 @@ func (n *Node) GetTag(key string) string {
 	return n.Field.Tag.Get(key)
 }
 
-func (n *Node) SetTag(key, value string) {
+func (n *Node) SetMeta(key, value string) {
 	if value == "" || key == "" {
 		return
 	}
 
-	n.tag[key] = value
+	n.meta[key] = value
+}
+
+func (n *Node) GetMeta(key string) string {
+	return n.meta[key]
 }
 
 // GetBoolTag behaves like GetTag except the value is
@@ -554,7 +581,7 @@ func MakeNodes(o Options, v interface{}) *Nodes {
 		panic(err.Error())
 	}
 
-	return getNodes("", v, o)
+	return makeNodes("", v, o)
 }
 
 type Options struct {
@@ -570,11 +597,11 @@ type Options struct {
 	IgnoreTypes []string
 }
 
-// getNodes iterates and recurses through the provided struct pointer.
+// makeNodes iterates and recurses through the provided struct pointer.
 //
 // "v" is already known and assumed to be a struct pointer.
 // "prefix" is simply the "parent" full path.
-func getNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
+func makeNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
 	nodes = &Nodes{
 		nodesMap:   make(map[string]*Node),
 		nodesSlice: make([]*Node, 0),
@@ -628,13 +655,15 @@ func getNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
 			FieldValue: field,
 			Field:      vStruct.Type().Field(i),
 			Index:      i,
+			tag:        make(map[string]string),
+			meta:       make(map[string]string),
 		}
 
 		addNode(nodes, node)
 
 		// If node is a struct then recurse (skip if it's on the noFollow type list).
 		if field.Kind() == reflect.Struct && followStruct(node.ValueType(), options.NoFollow) {
-			mergeNodes(nodes, getNodes(node.FullName(), field.Addr().Interface(), options))
+			mergeNodes(nodes, makeNodes(node.FullName(), field.Addr().Interface(), options))
 		}
 	}
 	return nodes

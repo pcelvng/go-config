@@ -34,7 +34,7 @@ func New(o Options, nGrps []*node.Nodes) (*Renderer, error) {
 	var err error
 	r := &Renderer{
 		preamble:   o.Preamble,
-		conclusion: o.Conclusion,
+		conclusion: o.Postamble,
 	}
 
 	// field name generator.
@@ -111,9 +111,9 @@ type Options struct {
 	// prepended to the rendering.
 	Preamble string
 
-	// Conclusion is optional and is used in the default renderer. It is appended
+	// Postamble is optional and is used in the default renderer. It is appended
 	// to the rendering.
-	Conclusion string
+	Postamble string
 
 	// FieldNameFormat defines the name format used when representing the field name when
 	// using the default name formatter.
@@ -136,7 +136,7 @@ type Options struct {
 	FieldNameFormat string
 
 	// RenderFunc is optional and if provided overrides the default render
-	// function. If a custom RenderFunc is provided then "Preamble" and "Conclusion" are
+	// function. If a custom RenderFunc is provided then "Preamble" and "Postamble" are
 	// not used.
 	RenderFunc RenderFunc
 }
@@ -237,7 +237,9 @@ func defaultRenderer(preamble, conclusion string, fieldGroups [][]*Field) []byte
 		fmt.Fprintln(buf, conclusion)
 	}
 
-	return buf.Bytes()
+	body := strings.TrimRight(buf.String(), "\n")
+
+	return []byte(body + "\n")
 }
 
 // wrap wraps the string `s` to a maximum width `w` with leading indent

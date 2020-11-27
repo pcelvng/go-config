@@ -33,7 +33,7 @@ func TestRender(t *testing.T) {
 
 	r, err := New(Options{
 		Preamble:        "my preamble",
-		Conclusion:      "my conclusion",
+		Postamble:       "my conclusion",
 		FieldNameFormat: " as field",
 	}, nGrps)
 	if err != nil {
