@@ -21,18 +21,18 @@ import (
 )
 
 // Load is a package wrapper around GoConfig.Load().
-func Load(c interface{}) error {
-	return defaultCfg.Load(c)
+func Load(appCfgs ...interface{}) error {
+	return defaultCfg.Load(appCfgs...)
 }
 
 // LoadOrDie is a package wrapper around GoConfig.LoadOrDie().
-func LoadOrDie(c interface{}) {
-	defaultCfg.LoadOrDie(c)
+func LoadOrDie(appCfgs ...interface{}) {
+	defaultCfg.LoadOrDie(appCfgs...)
 }
 
 // With is a package wrapper around GoConfig.With().
-func With(w ...string) *GoConfig {
-	return defaultCfg.With(w...)
+func With(with ...string) *GoConfig {
+	return defaultCfg.With(with...)
 }
 
 // RegisterLoadUnloader is a package wrapper around GoConfig.RegisterLoadUnloader().
@@ -599,8 +599,8 @@ func (g *GoConfig) AddHelpTxt(preTxt, postTxt string) *GoConfig {
 }
 
 // LoadOrDie calls Load and prints an error message and exits if there is an error.
-func (g *GoConfig) LoadOrDie(appCfg interface{}) {
-	err := g.Load(appCfg)
+func (g *GoConfig) LoadOrDie(appCfg ...interface{}) {
+	err := g.Load(appCfg...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
 		os.Exit(1)
@@ -613,7 +613,8 @@ func (g *GoConfig) LoadOrDie(appCfg interface{}) {
 // Values can be any of: "env", "toml", "yaml", "json", "flag" or names of
 // custom loaders registered with RegisterLoadUnloader.
 //
-// If a loader name does not exist then With panics.
+// If a loader name does not exist then With panics. Custom LoadUnloaders
+// must be registered before calling With.
 func (g *GoConfig) With(newWith ...string) *GoConfig {
 	validNames := loadUnloaderNames(g.lus)
 
