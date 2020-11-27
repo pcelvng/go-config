@@ -6,7 +6,7 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func New() *JSONLoadUnloader {
+func NewJSONLoadUnloader() *JSONLoadUnloader {
 	return &JSONLoadUnloader{}
 }
 

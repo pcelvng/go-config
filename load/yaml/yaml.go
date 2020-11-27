@@ -5,7 +5,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func New() *YAMLLoadUnloader {
+func NewYAMLLoadUnloader() *YAMLLoadUnloader {
 	return &YAMLLoadUnloader{}
 }
 

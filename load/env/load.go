@@ -8,10 +8,9 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-var (
-	loader = &EnvLoader{}
-	Load   = loader.Load
-)
+func NewEnvLoader() *EnvLoader {
+	return &EnvLoader{}
+}
 
 type EnvLoader struct{}
 
