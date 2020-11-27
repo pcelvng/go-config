@@ -61,24 +61,28 @@ func New() *GoConfig {
 		lus: map[string]*LoadUnloader{
 			// Note: "flag" is not listed here - it's a special case.
 			"env": {
-				Name:         "env",
-				FileExts:     []string{},
-				LoadUnloader: env.New(),
+				Name:     "env",
+				FileExts: []string{},
+				Loader:   env.NewEnvLoader(),
+				Unloader: env.NewEnvUnloader(),
 			},
 			"toml": {
-				Name:         "toml",
-				FileExts:     []string{"toml"},
-				LoadUnloader: toml.New(),
+				Name:     "toml",
+				FileExts: []string{"toml"},
+				Loader:   toml.NewTOMLLoadUnloader(),
+				Unloader: toml.NewTOMLLoadUnloader(),
 			},
 			"yaml": {
-				Name:         "yaml",
-				FileExts:     []string{"yaml", "yml"},
-				LoadUnloader: yaml.New(),
+				Name:     "yaml",
+				FileExts: []string{"yaml", "yml"},
+				Loader:   yaml.NewYAMLLoadUnloader(),
+				Unloader: yaml.NewYAMLLoadUnloader(),
 			},
 			"json": {
-				Name:         "json",
-				FileExts:     []string{"json"},
-				LoadUnloader: json.New(),
+				Name:     "json",
+				FileExts: []string{"json"},
+				Loader:   json.NewJSONLoadUnloader(),
+				Unloader: json.NewJSONLoadUnloader(),
 			},
 		},
 		with: []string{
@@ -105,8 +109,18 @@ type LoadUnloader struct {
 	// name to a LoadUnloader. No file extensions means the config can be loaded by some
 	// other means such as environment variables loading from the environment or from a server
 	// like etcd, consul or vault.
-	FileExts     []string
-	LoadUnloader load.LoadUnloader
+	FileExts []string
+	//LoadUnloader load.LoadUnloader
+
+	// Loader is required.
+	Loader load.Loader
+
+	// Unloader is not required; if not present then config templates will not be generatable for it.
+	Unloader load.Unloader
+}
+
+func (lu *LoadUnloader) canUnload() bool {
+	return lu.Unloader != nil
 }
 
 type GoConfig struct {
@@ -280,13 +294,17 @@ func (g *GoConfig) writeTemplate(pathOrName string, nGrps []*node.Nodes) error {
 			return errors.New("unable to generate config template from unregistered name")
 		}
 
-		u = lu.LoadUnloader
+		u = lu.Unloader
 	} else {
 		// unloader from file extension
 		u, err = g.unloaderFromExt(ext)
 		if err != nil {
 			return err
 		}
+	}
+
+	if u == nil {
+		return errors.New("template generation not supported for " + pathOrName)
 	}
 
 	// unload
@@ -324,7 +342,7 @@ func (g *GoConfig) unloaderFromExt(ext string) (load.Unloader, error) {
 	for _, lu := range g.lus {
 		for _, lExt := range lu.FileExts {
 			if ext == lExt {
-				return lu.LoadUnloader, nil
+				return lu.Unloader, nil
 			}
 		}
 	}
@@ -358,7 +376,7 @@ func (g *GoConfig) loaderFromNameOrExt(name, ext string) load.Loader {
 		// Match on name if no file exts defined.
 		if len(lu.FileExts) == 0 {
 			if lu.Name == name {
-				return lu.LoadUnloader
+				return lu.Loader
 			}
 
 			continue
@@ -368,7 +386,7 @@ func (g *GoConfig) loaderFromNameOrExt(name, ext string) load.Loader {
 		if len(lu.FileExts) > 0 {
 			for _, lExt := range lu.FileExts {
 				if lExt == ext {
-					return lu.LoadUnloader
+					return lu.Loader
 				}
 			}
 		}
@@ -381,7 +399,7 @@ func (g *GoConfig) loaderFromExt(ext string) (load.Loader, error) {
 	for _, lu := range g.lus {
 		for _, lExt := range lu.FileExts {
 			if ext == lExt {
-				return lu.LoadUnloader, nil
+				return lu.Loader, nil
 			}
 		}
 	}
@@ -395,7 +413,7 @@ func (g *GoConfig) loaderFromName(name string) (load.Loader, error) {
 		return nil, &LoaderNotFoundErr{lExt: name}
 	}
 
-	return lu.LoadUnloader, nil
+	return lu.Loader, nil
 }
 
 type UnloaderNotFoundErr struct {
@@ -691,8 +709,8 @@ func validateLoadUnloader(lu *LoadUnloader) error {
 		return errors.New("loadunloader name required")
 	}
 
-	if lu.LoadUnloader == nil {
-		return errors.New("loadunloader required")
+	if lu.Loader == nil {
+		return errors.New("loader required")
 	}
 
 	return nil
@@ -756,13 +774,17 @@ func (g *GoConfig) allExts() []string {
 }
 
 // allExtsAndNames returns a unique list of all the included file extensions and loader
-// names excluding "flag".
+// names excluding "flag" and registered LoadUnloaders that do not support unloading.
 func (g *GoConfig) allExtsAndNames() []string {
 	exts := make([]string, 0)
 
 	seen := map[string]bool{}
 	for _, lu := range g.lus {
 		if lu.Name == "flag" || itemIn(lu.Name, g.with) == "" {
+			continue
+		}
+
+		if !lu.canUnload() {
 			continue
 		}
 

@@ -18,7 +18,7 @@ var bJSON = []byte(`{"name": "json", "value": 10, "enable":true}`)
 func TestLoad(t *testing.T) {
 	fn := func(args ...interface{}) (interface{}, error) {
 		c := &SimpleStruct{}
-		err := New().Load(bJSON, node.MakeAllNodes(node.Options{
+		err := NewJSONLoadUnloader().Load(bJSON, node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
 		}, c))
 		return c, err

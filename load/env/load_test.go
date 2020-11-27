@@ -155,7 +155,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	nss := node.MakeAllNodes(node.Options{
 		NoFollow: []string{"time.Time"},
 	}, options)
-	err := Load([]byte{}, nss)
+	err := NewEnvLoader().Load([]byte{}, nss)
 	assert.Nil(t, err)
 
 	// basic types
@@ -228,7 +228,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	type OmitprefixStruct struct {
 		Omitprefix string `env:"omitprefix"`
 	}
-	err = Load([]byte{}, node.MakeAllNodes(node.Options{
+	err = NewEnvLoader().Load([]byte{}, node.MakeAllNodes(node.Options{
 		NoFollow: []string{"time.Time"},
 	}, &OmitprefixStruct{}))
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
@@ -236,7 +236,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	type OmitprefixTimeStruct struct {
 		OmitprefixTime time.Time `env:"omitprefix"`
 	}
-	err = Load([]byte{}, node.MakeAllNodes(node.Options{
+	err = NewEnvLoader().Load([]byte{}, node.MakeAllNodes(node.Options{
 		NoFollow: []string{"time.Time"},
 	}, &OmitprefixTimeStruct{}))
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")

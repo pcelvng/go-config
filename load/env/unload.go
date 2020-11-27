@@ -8,10 +8,9 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-var (
-	unloader = &EnvUnloader{}
-	Unload   = unloader.Unload
-)
+func NewEnvUnloader() *EnvUnloader {
+	return &EnvUnloader{}
+}
 
 func (u *EnvUnloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	u.buf = &bytes.Buffer{}

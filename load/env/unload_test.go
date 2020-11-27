@@ -14,7 +14,7 @@ func TestEncoder_Marshal(t *testing.T) {
 		value string
 	}
 	fn := func(args ...interface{}) (interface{}, error) {
-		b, err := Unload(node.MakeAllNodes(node.Options{
+		b, err := NewEnvUnloader().Unload(node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
 		}, args[0]))
 		return string(b), err

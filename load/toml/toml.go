@@ -7,7 +7,7 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-func New() *TOMLLoadUnloader {
+func NewTOMLLoadUnloader() *TOMLLoadUnloader {
 	return &TOMLLoadUnloader{}
 }
 

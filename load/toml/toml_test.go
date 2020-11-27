@@ -22,7 +22,7 @@ type SimpleStruct struct {
 func TestLoad(t *testing.T) {
 	fn := func(args ...interface{}) (interface{}, error) {
 		c := &SimpleStruct{}
-		err := New().Load(bTOML, node.MakeAllNodes(node.Options{
+		err := NewTOMLLoadUnloader().Load(bTOML, node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
 		}, c))
 		return c, err
