@@ -5,98 +5,50 @@ import (
 	"os"
 	"time"
 
-	"github.com/pcelvng/go-config/load/flag"
-
-	"github.com/pcelvng/go-config/render"
-
 	"github.com/pcelvng/go-config"
 )
 
-var (
-	hlpPreTxt = `example
-
-example is an example application to demonstrate the simplicity and usefulness 
-of basic config.
-`
-	hlpPostTxt = `That's all there is to be said.
-`
-)
-
 func main() {
-	i := 32
-	j := int64(64)
-	n := time.Now()
-	f := 6.4
-	f32 := float32(3.2)
 	appCfg := options{
-		Host: "localhost:5432", // default host value
-		DB: &DB{
-			Username: "username",
+		RunDuration: time.Second * 1,
+		EchoTime:    time.Now(),
+		DuckNames:   []string{"Freddy", "Eugene", "Alladin", "Sarah"},
+		DB: DB{
+			Host:     "localhost:5432",
+			Username: "default_username",
 		},
-		MyBool:     true,
-		MyPInt:     &i,
-		MyPInt64:   &j,
-		MyTime:     time.Now(),
-		MyPTime:    &n,
-		MyDuration: time.Second,
-		MyInt32:    32,
-		MyPFloat:   &f,
-		MyPFloat32: &f32,
-		MyUInt:     640,
 	}
-
-	err := config.
-		With("env", "flag").
-		Version("0.1.0").
-		WithShowOptions(render.Options{
-			Preamble:        "example 0.1.0\n",
-			Postamble:       "",
-			FieldNameFormat: "env",
-			//RenderFunc:      customRenderer,
-		}).
-		WithFlagOptions(flag.Options{
-			HelpPreamble:  hlpPreTxt,
-			HelpPostamble: hlpPostTxt,
-		}).
-		Load(&appCfg)
+	err := config.Load(&appCfg)
 	if err != nil {
 		fmt.Printf("err: %v\n", err.Error())
-		os.Exit(0)
+		os.Exit(1)
+	}
+	// show values
+	fmt.Println("configuration values:")
+	if err := config.Show(); err != nil {
+		fmt.Printf("err: %v\n", err.Error())
+		os.Exit(1)
 	}
 
-	config.Show()
+	// Run for RunDuration.
+	fmt.Println("waiting for " + appCfg.RunDuration.String() + "...")
+	<-time.NewTicker(appCfg.RunDuration).C
+
+	fmt.Printf("echo time: " + time.Now().Format(time.RFC3339) + "\n")
+	fmt.Println("done")
 }
 
 type options struct {
-	Host       string `env:"MY_CUSTOM_HOST"`
-	DB         *DB
-	MyInt      int
-	MyInt64    int64
-	MyFloat    float64
-	MyFloat32  float32
-	MyPFloat   *float64
-	MyPFloat32 *float32
-	MyBool     bool
-	MyPInt     *int
-	MyPInt64   *int64
-	MyInt32    int32
-	MyPInt32   *int32
-	MyUInt     uint
-	MyUInt64   uint64
-	MyUInt32   uint32
-	MyUInt16   uint16
-	MyUint8    uint8
-	MyPUInt    *uint
-	MyTime     time.Time  `fmt:"2006-01-02"`
-	MyPTime    *time.Time `fmt:"2006-01-02"`
-	MyDuration time.Duration
+	RunDuration time.Duration // Supports time.Duration
+	EchoTime    time.Time     `fmt:"RFC3339"`      // Suports time.Time with go-style formatting.
+	DuckNames   []string      `sep:";"`            // Supports slices. (Default separator is ",")
+	IgnoreMe    int           `env:"-" flag:"-"`   // Ignore for specified types.
+	DB          DB            `env:"DB" flag:"db"` // Supports struct types.
 }
 
 type DB struct {
-	Username string
-	Password string `env:"PW" show:"false" help:"the password"`
-}
-
-func customRenderer(pre, conc string, fieldGroups [][]*render.Field) []byte {
-	return []byte("custom renderer")
+	Name     string
+	Host     string `help:"The db host:port."`
+	Username string `env:"UN" flag:"un,u" help:"The db username."`
+	Password string `env:"PW" flag:"pw,p" help:"The db password." show:"false"`
 }

@@ -368,7 +368,7 @@ type GenHelpFunc func(preample, conclusion string, fGrps [][]*Flag) string
 
 func defaultGenHelp(preamble, conclusion string, fGroups [][]*Flag) string {
 	cols := 175
-	helpMenu := strings.TrimRight(preamble, "\n") + "\n\n"
+	helpMenu := strings.TrimRight(preamble, "\r\n") + "\r\n"
 
 	for _, fg := range fGroups {
 		buf := new(bytes.Buffer)
