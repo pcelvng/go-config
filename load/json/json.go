@@ -31,7 +31,7 @@ func (_ JSONLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 func (_ JSONLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
 	allB := make([]byte, 0)
 	for _, nGrp := range nGrps {
-		b, err := json.Marshal(nGrp.StructPtr())
+		b, err := json.MarshalIndent(nGrp.StructPtr(), "", "\t")
 		if err != nil {
 			return nil, err
 		}

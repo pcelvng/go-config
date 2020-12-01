@@ -41,7 +41,7 @@ func (ns *Nodes) StructPtr() interface{} {
 func (ns *Nodes) SetTag(fieldName, key, value string) error {
 	n, ok := ns.nodesMap[fieldName]
 	if !ok {
-		return errors.New("unable to set field tag the field is not found by name " + fieldName)
+		return errors.New("unable to set field tag: no field found by name '" + fieldName + "'")
 	}
 
 	n.SetTag(key, value)

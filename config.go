@@ -53,6 +53,14 @@ func WithFlagOptions(o flg.Options) *GoConfig {
 	return defaultCfg.WithFlagOptions(o)
 }
 
+func FieldHelp(fieldName, helpTxt string) *GoConfig {
+	return defaultCfg.FieldHelp(fieldName, helpTxt)
+}
+
+func FieldTag(fieldName, tagName, helpTxt string) *GoConfig {
+	return defaultCfg.FieldTag(fieldName, tagName, helpTxt)
+}
+
 // New creates a new config.
 func New() *GoConfig {
 	cfg := &GoConfig{
@@ -98,8 +106,9 @@ func New() *GoConfig {
 			// "..." <- custom names are loaded here by default.
 			"flag", // flag trumps all (by default - unless custom order specified).
 		},
-		stdFlgs:     &stdFlgs{},
-		showOptions: render.Options{},
+		stdFlgs:      &stdFlgs{},
+		showOptions:  render.Options{},
+		tagOverrides: make([]tagOverride, 0),
 	}
 
 	return cfg
@@ -147,12 +156,24 @@ type GoConfig struct {
 
 	showOptions render.Options
 
+	// tagOverrides stores struct field tag overrides allowing for long tag values and setting values at runtime.
+	tagOverrides []tagOverride
+
 	// showRenderer contains an instance of the showRenderer for customizing the display of
 	// loaded values.
 	showRenderer *render.Renderer
 
 	// version contains the application name and version as provided by calling "Version".
 	version string
+}
+
+type tagOverride struct {
+	FieldName string
+	Tag       string
+	TagValue  string
+
+	err   error
+	found bool
 }
 
 var (
@@ -167,14 +188,12 @@ var (
 
 // stdFlgs contains the set of standard flags used by the config library.
 type stdFlgs struct {
-	CfgPath string `flag:"config,c" env:"-" toml:"-"` // "help" text is dynamically generated.
+	ConfigPath string `flag:"config,c" env:"-" toml:"-"` // Dynamically generated "help" text.
 
 	// TODO: value can be path or extension. 'env' can also be 'sh'. 'env' or 'sh' is also attempts to make executable.
-	GenConfig  string `flag:"gen,g" env:"-" toml:"-"` // "help" text is dynamically generated.
-	ShowValues bool   `flag:"show" env:"-" toml:"-" help:"Print loaded config values and exit."`
-
-	// TODO: implement - only show option if a version is provided.
-	ShowVersion bool `flag:"version,v" env:"-" toml:"-" help:"Show application version and exit."`
+	Gen         string `flag:"gen,g" env:"-" toml:"-"` // Dynamically generated "help" text.
+	ShowValues  bool   `flag:"show" env:"-" toml:"-" help:"Print loaded config values and exit."`
+	ShowVersion bool   `flag:"version,v" env:"-" toml:"-" help:"Show application version and exit."`
 }
 
 // Load handles:
@@ -203,6 +222,12 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	nGrps := node.MakeAllNodes(node.Options{
 		NoFollow: []string{"time.Time"},
 	}, cfgs...)
+
+	// Apply field tag overrides.
+	err = g.applyTagOverrides(nGrps[1:])
+	if err != nil {
+		return err
+	}
 
 	// Initialize showRenderer.
 	//
@@ -238,13 +263,13 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	}
 
 	// Generate config template (if option provided).
-	err = g.writeTemplate(g.stdFlgs.GenConfig, nGrps[1:])
+	err = g.writeTemplate(g.stdFlgs.Gen, nGrps[1:])
 	if err != nil {
 		return err
 	}
 
 	// Read in all values.
-	err = g.loadAll(g.stdFlgs.CfgPath, nGrps)
+	err = g.loadAll(g.stdFlgs.ConfigPath, nGrps)
 	if err != nil {
 		return err
 	}
@@ -264,6 +289,30 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	for _, appCfg := range appCfgs {
 		if val, ok := appCfg.(Validator); ok {
 			return val.Validate()
+		}
+	}
+
+	return nil
+}
+
+func (g *GoConfig) applyTagOverrides(nGrps []*node.Nodes) error {
+	for _, nGrp := range nGrps {
+		for i, override := range g.tagOverrides {
+			err := nGrp.SetTag(override.FieldName, override.Tag, override.TagValue)
+			if err != nil && !override.found {
+				g.tagOverrides[i].err = err
+			}
+			if err == nil {
+				g.tagOverrides[i].err = nil
+				g.tagOverrides[i].found = true
+			}
+		}
+	}
+
+	// validate field tag overrides.
+	for _, override := range g.tagOverrides {
+		if !override.found {
+			return override.err
 		}
 	}
 
@@ -420,17 +469,17 @@ func (g *GoConfig) prepStdFlags(nGrp *node.Nodes) {
 	// "config" standard flag.
 	exts := g.allExts()
 	if len(exts) > 0 {
-		nGrp.SetTag("CfgPath", "help", fmt.Sprintf(cfgPathHelp, strings.Join(exts, "|")))
+		nGrp.SetTag("ConfigPath", "help", fmt.Sprintf(cfgPathHelp, strings.Join(exts, "|")))
 	} else {
-		nGrp.SetTag("CfgPath", "flag", "-")
+		nGrp.SetTag("ConfigPath", "flag", "-")
 	}
 
 	// "gen" standard flag.
 	allNames := g.allNames()
 	if len(allNames) > 0 {
-		nGrp.SetTag("GenConfig", "help", fmt.Sprintf(genConfigHelp, strings.Join(allNames, "|")))
+		nGrp.SetTag("Gen", "help", fmt.Sprintf(genConfigHelp, strings.Join(allNames, "|")))
 	} else {
-		nGrp.SetTag("GenConfig", "flag", "-") // no exts - ignore
+		nGrp.SetTag("Gen", "flag", "-") // no exts - ignore
 	}
 
 	// "version" standard flag.
@@ -689,6 +738,32 @@ func (g *GoConfig) WithShowOptions(o render.Options) *GoConfig {
 
 func (g *GoConfig) WithFlagOptions(o flg.Options) *GoConfig {
 	g.flgOptions = o
+	return g
+}
+
+// FieldHelp allows adding a struct field help tag at runtime. Field names are dot "." separated
+// values when referring to struct fields in struct fields.
+//
+// Field names are validated when "Load" is called.
+func (g *GoConfig) FieldHelp(fieldName, helpTxt string) *GoConfig {
+	g.tagOverrides = append(g.tagOverrides, tagOverride{
+		FieldName: fieldName,
+		Tag:       "help",
+		TagValue:  helpTxt,
+	})
+	return g
+}
+
+// FieldTag allows for runtime modification of struct field tags. Field names are dot "." separated
+// values when referring to struct fields in struct fields.
+//
+// Field names are validated when "Load" is called.
+func (g *GoConfig) FieldTag(fieldName, tagName, helpTxt string) *GoConfig {
+	g.tagOverrides = append(g.tagOverrides, tagOverride{
+		FieldName: fieldName,
+		Tag:       tagName,
+		TagValue:  helpTxt,
+	})
 	return g
 }
 

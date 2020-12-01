@@ -237,9 +237,9 @@ func defaultRenderer(preamble, conclusion string, fieldGroups [][]*Field) []byte
 		fmt.Fprintln(buf, conclusion)
 	}
 
-	body := strings.TrimRight(buf.String(), "\n")
+	body := strings.TrimSpace(buf.String())
 
-	return []byte(body + "\n")
+	return []byte("\r\n" + body + "\r\n")
 }
 
 // wrap wraps the string `s` to a maximum width `w` with leading indent
