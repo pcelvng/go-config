@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/pcelvng/go-config/render"
+
 	"github.com/pcelvng/go-config"
 )
 
@@ -18,7 +20,11 @@ func main() {
 			Username: "default_username",
 		},
 	}
-	err := config.Load(&appCfg)
+	err := config.WithShowOptions(render.Options{
+		Preamble:        "",
+		Postamble:       "",
+		FieldNameFormat: "env",
+	}).Load(&appCfg)
 	if err != nil {
 		fmt.Printf("err: %v\n", err.Error())
 		os.Exit(1)

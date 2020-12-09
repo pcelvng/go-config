@@ -350,8 +350,12 @@ func (r *Renderer) fieldGroup(ngrp *node.Nodes) ([]*Field, error) {
 			return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
 		}
 
+		name := r.nameFunc(n, heritage)
+		if name == "" {
+			continue
+		}
 		fg = append(fg, &Field{
-			Name:    r.nameFunc(n, heritage),
+			Name:    name,
 			Type:    node.ValueType(n),
 			Req:     n.GetBoolTag(reqTag),
 			Show:    isShown(n),
@@ -558,7 +562,7 @@ func genBaseName(heritage []*node.Node, nameFrom, formatAs string) (prefix strin
 	return prefix
 }
 
-// nodeEnvName generates the env name of the node. Does
+// nodeEnvName generates the name of the node. Does
 // not include the prefix.
 func nodeName(n *node.Node, nameFrom, formatAs string) string {
 	name := ""
@@ -566,6 +570,13 @@ func nodeName(n *node.Node, nameFrom, formatAs string) string {
 	case envTag, flagTag, tomlTag, yamlTag, jsonTag:
 		name = n.GetTag(nameFrom)
 		name = strings.Split(name, ",")[0] // handle cases with special "," options like ",string"
+		if name == "-" {
+			return ""
+		}
+
+		if len(name) > 0 {
+			return name
+		}
 	}
 
 	if name == "" {
