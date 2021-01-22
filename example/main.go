@@ -5,9 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/pcelvng/go-config/render"
-
 	"github.com/pcelvng/go-config"
+	"github.com/pcelvng/go-config/render"
 )
 
 func main() {
@@ -15,6 +14,7 @@ func main() {
 		RunDuration: time.Second * 1,
 		EchoTime:    time.Now(),
 		DuckNames:   []string{"Freddy", "Eugene", "Alladin", "Sarah"},
+		IsRich:      true,
 		DB: DB{
 			Host:     "localhost:5432",
 			Username: "default_username",
@@ -50,6 +50,7 @@ type options struct {
 	DuckNames   []string      `sep:";"`            // Supports slices. (Default separator is ",")
 	IgnoreMe    int           `env:"-" flag:"-"`   // Ignore for specified types.
 	DB          DB            `env:"DB" flag:"db"` // Supports struct types.
+	IsRich      bool
 }
 
 type DB struct {
