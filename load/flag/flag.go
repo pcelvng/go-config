@@ -155,10 +155,10 @@ func (fs *flagSet) register(f *Flag) {
 	// line behavior is different.
 	if f.n.IsBool() {
 		bp := f.n.FieldValue.Addr().Interface().(*bool)
-		fs.fs.BoolVar(bp, f.Name, false, "")
+		fs.fs.BoolVar(bp, f.Name, f.n.FieldValue.Bool(), "")
 
 		if f.Alias != "" {
-			fs.fs.BoolVar(bp, f.Alias, false, "")
+			fs.fs.BoolVar(bp, f.Alias, f.n.FieldValue.Bool(), "")
 		}
 		return
 	}
