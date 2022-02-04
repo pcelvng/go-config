@@ -20,24 +20,34 @@ import (
 	"github.com/pcelvng/go-config/util/node"
 )
 
-// Load is a package wrapper around GoConfig.Load().
+// Load is a package wrapper around *GoConfig.Load().
 func Load(appCfgs ...interface{}) error {
 	return defaultCfg.Load(appCfgs...)
 }
 
-// LoadOrDie is a package wrapper around GoConfig.LoadOrDie().
+// LoadOrDie is a package wrapper around *GoConfig.LoadOrDie().
 func LoadOrDie(appCfgs ...interface{}) {
 	defaultCfg.LoadOrDie(appCfgs...)
 }
 
-// With is a package wrapper around GoConfig.With().
+// With is a package wrapper around *GoConfig.With().
 func With(with ...string) *GoConfig {
 	return defaultCfg.With(with...)
 }
 
-// RegisterLoadUnloader is a package wrapper around GoConfig.RegisterLoadUnloader().
+// RegisterLoadUnloader is a package wrapper around *GoConfig.RegisterLoadUnloader().
 func RegisterLoadUnloader(loadUnloader *LoadUnloader) *GoConfig {
 	return defaultCfg.RegisterLoadUnloader(loadUnloader)
+}
+
+// DisableStdFlags is a package wrapper around *GoConfig.DisableFlagHelp().
+func DisableStdFlags() *GoConfig {
+	return defaultCfg.DisableStdFlags()
+}
+
+// SetConfigPath is a package wrapper around *GoConfig.SetConfigPath().
+func SetConfigPath(pth string) *GoConfig {
+	return defaultCfg.SetConfigPath(pth)
 }
 
 // Version is a package wrapper around GoConfig.Version().
@@ -165,6 +175,9 @@ type GoConfig struct {
 
 	// version contains the application name and version as provided by calling "Version".
 	version string
+
+	// stdFlgsDisabled will disable std flag support such as usage of the --gen flag.
+	stdFlgsDisabled bool
 }
 
 type tagOverride struct {
@@ -218,13 +231,24 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 		return err
 	}
 
-	cfgs := append([]interface{}{g.stdFlgs}, appCfgs...)
-	nGrps := node.MakeAllNodes(node.Options{
+	cfgs := make([]interface{}, 0)
+	if !g.stdFlgsDisabled {
+		cfgs = append(cfgs, g.stdFlgs)
+	}
+	cfgs = append(cfgs, appCfgs...)
+	allNGrps := node.MakeAllNodes(node.Options{
 		NoFollow: []string{"time.Time"},
 	}, cfgs...)
 
+	stdNGrp := make([]*node.Nodes, 0)
+	nGrps := allNGrps
+	if !g.stdFlgsDisabled {
+		stdNGrp = allNGrps[0:1]
+		nGrps = allNGrps[1:]
+	}
+
 	// Apply field tag overrides.
-	err = g.applyTagOverrides(nGrps[1:])
+	err = g.applyTagOverrides(nGrps)
 	if err != nil {
 		return err
 	}
@@ -233,7 +257,7 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	//
 	// Default values are recorded with the showRenderer on initialization.
 	// Standard flags are excluded.
-	g.showRenderer, err = render.New(g.showOptions, nGrps[1:])
+	g.showRenderer, err = render.New(g.showOptions, nGrps)
 	if err != nil {
 		return err
 	}
@@ -245,30 +269,45 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	// load resolution. This is the initial load.
 	g.prepStdFlags(nGrps[0])
 	preLdr := flg.NewLoader(g.flgOptions)
-	if itemIn("flag", g.with) == "" {
-		// Standard flags only.
-		if err := preLdr.Load([]byte{}, nGrps[0:1]); err != nil {
+	// Handle flags, std flags enabled combinations. If both flags and std flags
+	// are disabled then do not create a flag set at all.
+	switch true {
+	case itemIn("flag", g.with) == "" && !g.stdFlgsDisabled:
+		// flags disabled
+		// std flags enabled
+		if err := preLdr.Load([]byte{}, stdNGrp); err != nil {
 			return err
 		}
-	} else {
-		// Standard + app config flags.
+	case itemIn("flag", g.with) == "flag" && g.stdFlgsDisabled:
+		// flags enabled
+		// std flags disabled
 		if err := preLdr.Load([]byte{}, nGrps); err != nil {
 			return err
 		}
+	case itemIn("flag", g.with) == "flag" && !g.stdFlgsDisabled:
+		// flags enabled
+		// std flags enabled
+		if err := preLdr.Load([]byte{}, allNGrps); err != nil {
+			return err
+		}
 	}
 
-	// Handle showing app version.
-	if g.stdFlgs.ShowVersion {
-		g.showVersion()
-	}
+	if !g.stdFlgsDisabled {
+		// Handle showing app version.
+		if g.stdFlgs.ShowVersion {
+			g.showVersion()
+		}
 
-	// Generate config template (if option provided).
-	err = g.writeTemplate(g.stdFlgs.Gen, nGrps[1:])
-	if err != nil {
-		return err
+		// Generate config template (if option provided).
+		err = g.writeTemplate(g.stdFlgs.Gen, nGrps[1:])
+		if err != nil {
+			return err
+		}
 	}
 
 	// Read in all values.
+	// Note: If stdFlgs are disabled then g.stdFlags.ConfigPath will be empty
+	// unless the user has set a default value via *GoConfig.SetConfigPath().
 	err = g.loadAll(g.stdFlgs.ConfigPath, nGrps)
 	if err != nil {
 		return err
@@ -741,6 +780,15 @@ func (g *GoConfig) WithFlagOptions(o flg.Options) *GoConfig {
 	return g
 }
 
+// DisableStdFlags will disable standard CLI options such as --gen.
+//
+// Note: This does not disable flag usage. To disable flags entirely
+// call "With" providing the config types you wish to include.
+func (g *GoConfig) DisableStdFlags() *GoConfig {
+	g.stdFlgsDisabled = true
+	return g
+}
+
 // FieldHelp allows adding a struct field help tag at runtime. Field names are dot "." separated
 // values when referring to struct fields in struct fields.
 //
@@ -764,6 +812,20 @@ func (g *GoConfig) FieldTag(fieldName, tagName, helpTxt string) *GoConfig {
 		Tag:       tagName,
 		TagValue:  helpTxt,
 	})
+	return g
+}
+
+// SetConfigPath can be used to set the config path in a manner other than through the
+// standard "--config,-c" standard flag.
+//
+// This can be useful when the user:
+// - Wishes to set a default config flag value.
+// - Wishes to set a config path while having standard flags disabled.
+//
+// Note: The --config,-c flag value will override this value unless standard flags
+// are disabled.
+func (g *GoConfig) SetConfigPath(pth string) *GoConfig {
+	g.stdFlgs.ConfigPath = pth
 	return g
 }
 
