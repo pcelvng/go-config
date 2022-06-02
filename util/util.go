@@ -28,6 +28,16 @@ func ToSnake(name string) string {
 	return strcase.ToSnake(name)
 }
 
+// ToLowerSnake converts "name" to lower snake_case.
+// Any periods "." are removed before conversion.
+//
+// Special thanks to iancoleman's strcase library.
+// see: "github.com/iancoleman/strcase"
+func ToLowerSnake(name string) string {
+	name = strings.ToLower(strings.ReplaceAll(name, ".", ""))
+	return strcase.ToSnake(name)
+}
+
 // ToCamel converts "name" to CamelCase.
 // Any periods "." are removed before conversion.
 //

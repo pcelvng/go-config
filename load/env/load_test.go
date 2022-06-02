@@ -69,6 +69,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 		"STRING_OVERRIDE":  "vSTRING_OVERRIDE",
 		"CONFIG_IGNORE":    "should-not-be-read-in",
 		"NO_PREFIX_STRING": "vNO_PREFIX_STRING",
+
+		// global prefix
+		"PREFIX_PSTRING": "vPREFIX_STRING",
 	}
 
 	for k, v := range envMap {
@@ -145,6 +148,9 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 		// env name override.
 		StringOverride string `env:"STRING_OVERRIDE"`
 
+		// global prefix
+		PString string `env:"PSTRING"`
+
 		// Other
 		ConfigIgnore string          `config:"ignore"`
 		OmitPrefix   NoPrefixOptions `env:"omitprefix"`
@@ -219,6 +225,10 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	assert.Equal(t, "", options.ConfigIgnore)
 	assert.Equal(t, envMap["NO_PREFIX_STRING"], options.OmitPrefix.NoPrefixString)
 
+	err = NewEnvLoader().WithPrefix("prefix").Load([]byte{}, nss)
+	assert.NoError(t, err)
+	assert.Equal(t, "vPREFIX_STRING", options.PString)
+
 	for k := range envMap {
 		os.Unsetenv(k)
 	}
@@ -240,4 +250,5 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 		NoFollow: []string{"time.Time"},
 	}, &OmitprefixTimeStruct{}))
 	assert.EqualError(t, err, "'omitprefix' cannot be used on non-struct field types")
+
 }

@@ -73,15 +73,25 @@ func FieldTag(fieldName, tagName, helpTxt string) *GoConfig {
 
 // New creates a new config.
 func New() *GoConfig {
+	return NewWithPrefix("")
+}
+
+// NewWithPrefix creates a new config with a global prefix for loaders.
+func NewWithPrefix(prefix string) *GoConfig {
+	if prefix != "" {
+		prefix = util.ToLowerSnake(prefix)
+	}
+
 	cfg := &GoConfig{
 		initialized: true,
+		prefix:      prefix,
 		lus: map[string]*LoadUnloader{
 			// Note: "flag" is not listed here - it's a special case.
 			"env": {
 				Name:     "env",
 				FileExts: []string{},
-				Loader:   env.NewEnvLoader(),
-				Unloader: env.NewEnvUnloader(),
+				Loader:   env.NewEnvLoader().WithPrefix(prefix),
+				Unloader: env.NewEnvUnloader().WithPrefix(prefix),
 			},
 			"toml": {
 				Name:     "toml",
@@ -104,7 +114,7 @@ func New() *GoConfig {
 			"flag": {
 				Name:     "flag",
 				FileExts: []string{},
-				Loader:   flg.NewLoader(flg.Options{}),
+				Loader:   flg.NewLoader(flg.Options{}).WithPrefix(prefix),
 			},
 		},
 		with: []string{
@@ -150,6 +160,9 @@ type GoConfig struct {
 
 	// with is a list of loaders by name in the order they will be loaded.
 	with []string
+
+	// prefix is a global prefix for this loader for config keys in env or flags
+	prefix string
 
 	// lus contains a map by Name of registered LoadUnloaders.
 	lus map[string]*LoadUnloader

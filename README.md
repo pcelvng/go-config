@@ -201,3 +201,23 @@ type DB struct {
 	Password string `env:"PW" flag:"pw,p" help:"The db password." show:"false"`
 }
 ```
+
+Prefixed Keys (env and flags):
+
+NOTE: prefix must be applied at time of construction and cannot be set after initialization
+
+```sh
+func main() {
+    appCfg := &options{}
+    cfg := config.NewWithPrefix("my_app").With("env")
+    err := cfg.Load(appCfg)
+    if err != nil {
+        fmt.Printf("err: %v\n", err.Error())
+        os.Exit(1)
+    }
+}
+
+type options struct {
+	Host string // Loaded from MY_APP_HOST env var
+}
+```
