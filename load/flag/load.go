@@ -1,8 +1,9 @@
 package flag
 
 import (
-	"github.com/pcelvng/go-config/util"
 	"os"
+
+	"github.com/pcelvng/go-config/util"
 
 	"github.com/pcelvng/go-config/util/node"
 )
