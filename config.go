@@ -78,10 +78,6 @@ func New() *GoConfig {
 
 // NewWithPrefix creates a new config with a global prefix for loaders.
 func NewWithPrefix(prefix string) *GoConfig {
-	if prefix != "" {
-		prefix = util.ToLowerSnake(prefix)
-	}
-
 	cfg := &GoConfig{
 		initialized: true,
 		prefix:      prefix,

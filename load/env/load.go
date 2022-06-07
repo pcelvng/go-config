@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"github.com/pcelvng/go-config/util"
 	"os"
 	"strings"
 
@@ -13,7 +14,7 @@ func NewEnvLoader() *EnvLoader {
 }
 
 func (l *EnvLoader) WithPrefix(prefix string) *EnvLoader {
-	l.prefix = strings.ToUpper(prefix)
+	l.prefix = util.ToScreamingSnake(prefix)
 	return l
 }
 
