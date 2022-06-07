@@ -178,3 +178,38 @@ export STRING=
 	}
 	trial.New(fn, cases).Test(t)
 }
+
+func TestEncoder_Marshal_Prefix(t *testing.T) {
+	fn := func(args ...interface{}) (interface{}, error) {
+		b, err := NewEnvUnloader().WithPrefix("prefix").Unload(node.MakeAllNodes(node.Options{
+			NoFollow: []string{"time.Time"},
+		}, args[0]))
+		return string(b), err
+	}
+	cases := trial.Cases{
+		"ints": {
+			Input: &struct {
+				Int   int
+				Int8  int8
+				Int16 int16
+				Int32 int32
+				Int64 int64
+			}{
+				Int:   1,
+				Int8:  2,
+				Int16: 3,
+				Int32: 4,
+				Int64: 5,
+			},
+			Expected: `#!/usr/bin/env sh
+
+export PREFIX_INT=1
+export PREFIX_INT_8=2
+export PREFIX_INT_16=3
+export PREFIX_INT_32=4
+export PREFIX_INT_64=5
+`,
+		},
+	}
+	trial.New(fn, cases).Test(t)
+}

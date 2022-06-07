@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"github.com/pcelvng/go-config/util"
 	"os"
 	"strings"
 
@@ -12,14 +13,21 @@ func NewEnvLoader() *EnvLoader {
 	return &EnvLoader{}
 }
 
-type EnvLoader struct{}
+func (l *EnvLoader) WithPrefix(prefix string) *EnvLoader {
+	l.prefix = util.ToScreamingSnake(prefix)
+	return l
+}
+
+type EnvLoader struct {
+	prefix string
+}
 
 // Load implements the go-config/load.EnvLoader interface.
 //
 // TODO: load env vars from a file (i.e. from bytes)
 func (l *EnvLoader) Load(_ []byte, nGrps []*node.Nodes) error {
 	for _, nGrp := range nGrps {
-		err := load(nGrp)
+		err := load(l.prefix, nGrp)
 		if err != nil {
 			return err
 		}
@@ -28,7 +36,7 @@ func (l *EnvLoader) Load(_ []byte, nGrps []*node.Nodes) error {
 	return nil
 }
 
-func load(nodes *node.Nodes) error {
+func load(prefix string, nodes *node.Nodes) error {
 	for _, n := range nodes.List() {
 		heritage := node.Parents(n, nodes.Map())
 
@@ -54,7 +62,7 @@ func load(nodes *node.Nodes) error {
 		}
 
 		// Set field from env value.
-		err := setFieldValue(n, os.Getenv(genFullName(n, heritage)))
+		err := setFieldValue(n, os.Getenv(genFullName(prefix, n, heritage)))
 		if err != nil {
 			return err
 		}

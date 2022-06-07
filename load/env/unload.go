@@ -12,6 +12,11 @@ func NewEnvUnloader() *EnvUnloader {
 	return &EnvUnloader{}
 }
 
+func (u *EnvUnloader) WithPrefix(prefix string) *EnvUnloader {
+	u.prefix = strings.ToUpper(prefix)
+	return u
+}
+
 func (u *EnvUnloader) Unload(nss []*node.Nodes) ([]byte, error) {
 	u.buf = &bytes.Buffer{}
 
@@ -29,7 +34,8 @@ func (u *EnvUnloader) Unload(nss []*node.Nodes) ([]byte, error) {
 }
 
 type EnvUnloader struct {
-	buf *bytes.Buffer
+	buf    *bytes.Buffer
+	prefix string
 }
 
 func (u *EnvUnloader) unload(nodes *node.Nodes) error {
@@ -58,7 +64,7 @@ func (u *EnvUnloader) unload(nodes *node.Nodes) error {
 		}
 
 		// Write line bytes to buffer.
-		u.doWrite(genFullName(n, heritage), genHelp(n), toStr(n))
+		u.doWrite(genFullName(u.prefix, n, heritage), genHelp(n), toStr(n))
 	}
 
 	return nil

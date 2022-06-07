@@ -57,6 +57,7 @@ type flagSet struct {
 	fGroups [][]*Flag
 	fNames  map[string]bool
 	options Options
+	prefix  string
 }
 
 // SetHelp will override an existing field "help" value or create
@@ -115,7 +116,7 @@ func (fs *flagSet) makeFlags(nGrp *node.Nodes) error {
 		}
 
 		f := &Flag{
-			Name:  genFullName(n, heritage),
+			Name:  genFullName(fs.prefix, n, heritage),
 			Alias: alias,
 			n:     n,
 		}
@@ -248,14 +249,17 @@ func splitSlice(flagValue string, sep string, isString bool) []string {
 }
 
 // genFullName generates the full flag name including the prefix.
-var genFullName = func(n *node.Node, heritage []*node.Node) (fullName string) {
-	return genPrefix(append(heritage, n))
+var genFullName = func(prefix string, n *node.Node, heritage []*node.Node) (fullName string) {
+	return genPrefix(prefix, append(heritage, n))
 }
 
 // genPrefix generates the flag name prefix.
 //
 // 'heritage' is expected to be ordered from most to least distant relative.
-func genPrefix(heritage []*node.Node) (prefix string) {
+func genPrefix(globalPrefix string, heritage []*node.Node) (prefix string) {
+	if globalPrefix != "" {
+		prefix = globalPrefix
+	}
 	for _, hn := range heritage {
 		flagName, _ := nodeFlagName(hn)
 		if flagName == "" {

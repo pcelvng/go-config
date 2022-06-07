@@ -19,14 +19,17 @@ var (
 )
 
 // genFullName generates the full env name including the prefix.
-func genFullName(n *node.Node, heritage []*node.Node) (fullName string) {
-	return genPrefix(append(heritage, n))
+func genFullName(prefix string, n *node.Node, heritage []*node.Node) (fullName string) {
+	return genPrefix(prefix, append(heritage, n))
 }
 
 // genPrefix generates the env name prefix.
 //
 // 'heritage' is expected to be ordered from most to least distant relative.
-func genPrefix(heritage []*node.Node) (prefix string) {
+func genPrefix(globalPrefix string, heritage []*node.Node) (prefix string) {
+	if globalPrefix != "" {
+		prefix = globalPrefix
+	}
 	for _, hn := range heritage {
 		envName := nodeEnvName(hn)
 		if envName == "" {
@@ -34,7 +37,7 @@ func genPrefix(heritage []*node.Node) (prefix string) {
 		}
 
 		if prefix == "" {
-			prefix = envName
+			prefix += envName
 		} else {
 			prefix += "_" + envName
 		}

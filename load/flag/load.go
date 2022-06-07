@@ -3,6 +3,8 @@ package flag
 import (
 	"os"
 
+	"github.com/pcelvng/go-config/util"
+
 	"github.com/pcelvng/go-config/util/node"
 )
 
@@ -22,8 +24,14 @@ func NewLoader(o Options) *Loader {
 	return &Loader{o: o}
 }
 
+func (l *Loader) WithPrefix(prefix string) *Loader {
+	l.prefix = util.ToKebab(prefix)
+	return l
+}
+
 type Loader struct {
-	o Options
+	o      Options
+	prefix string
 }
 
 func (l *Loader) Load(_ []byte, nGrps []*node.Nodes) error {
@@ -32,6 +40,7 @@ func (l *Loader) Load(_ []byte, nGrps []*node.Nodes) error {
 		return err
 	}
 
+	fs.prefix = l.prefix
 	// -help and -h are already reserved. The following
 	// provides more support for "help" and "h"
 	// without the dash "-" prefix.
