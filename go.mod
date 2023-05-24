@@ -1,6 +1,6 @@
 module github.com/pcelvng/go-config
 
-go 1.17
+go 1.19
 
 require (
 	github.com/hydronica/toml v0.4.2

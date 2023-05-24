@@ -13,7 +13,7 @@ type Loader interface {
 	// Load should support embedded structs and struct types.
 	//
 	// Load should ignore reading in values where the public member has a struct tag
-	// of this type of a dash '-'. So, if the implementation were for loading flags
+	// of this type of dash '-'. So, if the implementation were for loading flags
 	// and a 'flag' struct tag was provided as `flag:"-"` then no value should be read
 	// in to that struct member.
 	//
@@ -34,7 +34,7 @@ type Loader interface {
 	// parsable strings.
 	//
 	// Load should be implemented with the fact in mind that other Loaders could
-	// be called before or after it. Therefore, Load doesn't not return an error if a 'req'
+	// be called before or after it. Therefore, Load does not return an error if a 'req'
 	// field value is not provided since that value could have already been provided or will
 	// be provided by a call to a different Loader.
 	Load([]byte, []*node.Nodes) error
@@ -66,7 +66,7 @@ type Unloader interface {
 	// - channels
 	// - private fields
 	//
-	// Load and Unload should be idempotent. That is, the generated template
+	// Generally speaking, Load and Unload should be idempotent. That is, the generated template
 	// from Unload should produce identical struct values when read back in by Load.
 	//
 	// time.Time field types should provide some type of hint to the user what the requested

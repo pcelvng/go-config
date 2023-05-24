@@ -64,7 +64,7 @@ type Node struct {
 
 	// Index is the field index in the struct. AKA the field's "order" relative to other
 	// fields in the struct. Note that since private fields are skipped the Index value
-	// can also skip. For example you may end up with fields in the same struct with
+	// can also skip. For example, you may end up with fields in the same struct with
 	// Index values {1,2,4,5} because '3' is a private member.
 	Index int
 
@@ -76,7 +76,7 @@ type Node struct {
 	// accessing "Field.Tag".
 	tag map[string]string
 
-	// meta provides allowance for pre or post processing meta data
+	// meta provides allowance for pre- or post-processing metadata
 	// for sharing information such as a resolved variable name.
 	meta map[string]string
 }
@@ -282,7 +282,7 @@ func (n *Node) String() string {
 // SliceString panics if the underlying field value type is not a slice
 // or the underlying slice type is not on the basic type list.
 func (n *Node) SliceString() []string {
-	// Must be slice.
+	// Must be a slice.
 	if !n.IsSlice() {
 		panic(fmt.Sprintf("field value '%v' must be a slice and instead was '%v'",
 			n.FullName(),
@@ -333,7 +333,7 @@ func (n *Node) TimeString(timeFmt string) string {
 	return tv.Format(timeFmt)
 }
 
-// SetValue attempts to convert the field value "fv" represented
+// SetFieldValue attempts to convert the field value "fv" represented
 // as a string and assign it to the node value. An error is returned
 // if the string cannot be converted to the underlying go type.
 //
@@ -363,7 +363,7 @@ func (n *Node) SetFieldValue(s string) error {
 // other information about separation such as if the starting and terminating "[]"
 // should be removed.
 func (n *Node) SetSlice(vals []string) error {
-	// Must be slice.
+	// Must be a slice.
 	if !n.IsSlice() {
 		panic(fmt.Sprintf("field value '%v' must be a slice and instead was '%v'",
 			n.FullName(),
@@ -373,7 +373,7 @@ func (n *Node) SetSlice(vals []string) error {
 
 	fValue := n.FieldValue
 
-	// create a slice and recursively assign the elements
+	// Create a slice and recursively assign the elements.
 	baseType := reflect.TypeOf(fValue.Interface()).Elem()
 
 	slice := reflect.MakeSlice(fValue.Type(), 0, len(vals))
