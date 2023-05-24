@@ -2,10 +2,11 @@ package env
 
 import (
 	"fmt"
-	"github.com/pcelvng/go-config/util"
 	"os"
+	"reflect"
 	"strings"
 
+	"github.com/pcelvng/go-config/util"
 	"github.com/pcelvng/go-config/util/node"
 )
 
@@ -64,7 +65,7 @@ func load(prefix string, nodes *node.Nodes) error {
 		// Set field from env value.
 		err := setFieldValue(n, os.Getenv(genFullName(prefix, n, heritage)))
 		if err != nil {
-			return err
+			return fmt.Errorf("%w type=%v field=%s", err, reflect.TypeOf(n.FullName()), n.FullName())
 		}
 	}
 
