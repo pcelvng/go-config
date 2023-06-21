@@ -22,18 +22,19 @@ func main() {
 	}
 	//err := config.With("env").Load(&appCfg)
 	//err := config.DisableStdFlags().With("env").Load(&appCfg)
-	err := config.WithShowOptions(render.Options{
+	custCfg := config.NewWithPrefix("PG").WithShowOptions(render.Options{
 		Preamble:        "",
 		Postamble:       "",
 		FieldNameFormat: "env",
-	}).Load(&appCfg)
+	})
+	err := custCfg.Load(&appCfg)
 	if err != nil {
 		fmt.Printf("err: %v\n", err.Error())
 		os.Exit(1)
 	}
 	// show values
 	fmt.Println("configuration values:")
-	if err := config.Show(); err != nil {
+	if err := custCfg.ShowValues(); err != nil {
 		fmt.Printf("err: %v\n", err.Error())
 		os.Exit(1)
 	}
@@ -48,10 +49,10 @@ func main() {
 
 type options struct {
 	RunDuration time.Duration // Supports time.Duration
-	EchoTime    time.Time     `fmt:"RFC3339"`              // Suports time.Time with go-style formatting.
-	DuckNames   []string      `sep:";"`                    // Supports slices. (Default separator is ",")
-	IgnoreMe    int           `env:"-" flag:"-"`           // Ignore for specified types.
-	DB          *DB           `env:"omitprefix" flag:"db"` // Supports struct types.
+	EchoTime    time.Time     `fmt:"RFC3339"`        // Suports time.Time with go-style formatting.
+	DuckNames   []string      `sep:";"`              // Supports slices. (Default separator is ",")
+	IgnoreMe    int           `env:"-" flag:"-"`     // Ignore for specified types.
+	DB          *DB           `env:"blah" flag:"db"` // Supports struct types.
 	IsRich      bool
 }
 

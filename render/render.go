@@ -26,15 +26,16 @@ var (
 	defaultSep = ","
 )
 
-// New should be called before struct values values are populated as
+// New should be called before struct values are populated as
 // it marks the initial field value. The field value is marked again
 // right before rendering so that the "ValueBefore" and "ValueAfter"
 // Field values are correctly populated and rendered.
-func New(o Options, nGrps []*node.Nodes) (*Renderer, error) {
+func New(o Options, nGrps []*node.Nodes, prefix string) (*Renderer, error) {
 	var err error
 	r := &Renderer{
 		preamble:   o.Preamble,
 		conclusion: o.Postamble,
+		prefix:     prefix,
 	}
 
 	// field name generator.
@@ -148,7 +149,8 @@ type Renderer struct {
 	conclusion string     // Appended string used in the default renderer.
 	fGrps      [][]*Field // One field group per config struct passed.
 	renderFunc RenderFunc
-	nameFunc   func(n *node.Node, heritage []*node.Node) string
+	nameFunc   func(n *node.Node, heritage []*node.Node, prefix string) string
+	prefix     string // Global prefix.
 }
 
 func (r *Renderer) Render() []byte {
@@ -350,7 +352,7 @@ func (r *Renderer) fieldGroup(ngrp *node.Nodes) ([]*Field, error) {
 			return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
 		}
 
-		name := r.nameFunc(n, heritage)
+		name := r.nameFunc(n, heritage, r.prefix)
 		if name == "" {
 			continue
 		}
@@ -395,7 +397,7 @@ func getSep(n *node.Node) string {
 
 // isShown calculates if a node value is shown.
 // If no value is present then defaults to "true".
-// Otherwise takes the bool value of the "show" tag.
+// Otherwise, takes the bool value of the "show" tag.
 func isShown(n *node.Node) bool {
 	show := n.GetTag(showTag)
 	if show == "" {
@@ -528,14 +530,21 @@ type defNameGenerator struct {
 }
 
 // genFieldName generates the string representation of the field name.
-func (ng *defNameGenerator) genFieldName(n *node.Node, heritage []*node.Node) (fullName string) {
-	return genBaseName(append(heritage, n), ng.nameFrom, ng.formatAs)
+func (ng *defNameGenerator) genFieldName(n *node.Node, heritage []*node.Node, prefix string) (fullName string) {
+	del := genDel(ng.formatAs)
+	if len(prefix) > 0 {
+		prefix = prefix + del
+	}
+	baseName := genBaseName(append(heritage, n), ng.nameFrom, ng.formatAs, del)
+	if len(baseName) == 0 {
+		return baseName
+	}
+
+	return prefix + baseName
 }
 
-// genPrefix generates the env name prefix.
-//
-// 'heritage' is expected to be ordered from most to least distant relative.
-func genBaseName(heritage []*node.Node, nameFrom, formatAs string) (prefix string) {
+// genDel generates the name delimiter.
+func genDel(formatAs string) string {
 	del := "."
 	switch formatAs {
 	case "screaming-snake", "snake":
@@ -546,23 +555,30 @@ func genBaseName(heritage []*node.Node, nameFrom, formatAs string) (prefix strin
 		del = "-"
 	}
 
+	return del
+}
+
+// genBaseName generates the env name prefix.
+//
+// 'heritage' is expected to be ordered from most to least distant relative.
+func genBaseName(heritage []*node.Node, nameFrom, formatAs, del string) (baseName string) {
 	for _, hn := range heritage {
 		name := nodeName(hn, nameFrom, formatAs)
 		if name == "" {
 			continue
 		}
 
-		if prefix == "" {
-			prefix = name
+		if baseName == "" {
+			baseName = name
 		} else {
-			prefix += del + name
+			baseName += del + name
 		}
 	}
 
-	return prefix
+	return baseName
 }
 
-// nodeEnvName generates the name of the node. Does
+// nodeName generates the name of the node. Does
 // not include the prefix.
 func nodeName(n *node.Node, nameFrom, formatAs string) string {
 	name := ""

@@ -266,7 +266,7 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 	//
 	// Default values are recorded with the showRenderer on initialization.
 	// Standard flags are excluded.
-	g.showRenderer, err = render.New(g.showOptions, nGrps)
+	g.showRenderer, err = render.New(g.showOptions, nGrps, g.prefix)
 	if err != nil {
 		return err
 	}
