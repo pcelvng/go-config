@@ -1,6 +1,6 @@
 module github.com/hydronica/go-config
 
-go 1.13
+go 1.18
 
 require (
 	github.com/davecgh/go-spew v1.1.1
@@ -10,6 +10,8 @@ require (
 	github.com/jbsmith7741/trial v0.3.1
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+require github.com/hydronica/trial v0.8.0
 
 require (
 	github.com/google/go-cmp v0.6.0 // indirect

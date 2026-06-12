@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hydronica/go-config/internal/encode/env"
 	"github.com/hydronica/toml"
 	"gopkg.in/yaml.v2"
 )
@@ -29,6 +30,8 @@ func Load(f string, i interface{}) error {
 			return err
 		}
 		return yaml.Unmarshal(b, i)
+	case "env":
+		return env.LoadEnvFile(f, i)
 	default:
 		return fmt.Errorf("unknown file type %s", filepath.Ext(f))
 	}

@@ -11,24 +11,20 @@ import (
 )
 
 func New() *Decoder {
-	return &Decoder{}
+	return &Decoder{
+		GetVal: os.Getenv,
+	}
 }
 
-type Decoder struct{}
+type Decoder struct {
+	GetVal func(key string) string
+}
 
 // Unmarshal implements the go-config/encoding.Unmarshaler interface.
 func (d *Decoder) Unmarshal(v interface{}) error {
-	return populate("", v)
-}
-
-// populate is a recursive function for populating struct values from env variables.
-//
-// The case-sensitive value of prefix is pre-pended to each returned expected env variable
-// separated by an underscore '_'.
-//
-// If a struct pointer value is nil then the struct will be initialized and the struct pointer value
-// populated.
-func populate(prefix string, v interface{}) error {
+	if d.GetVal == nil {
+		d.GetVal = os.Getenv
+	}
 	// Verify that v is struct pointer. Should not be nil.
 	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
@@ -73,19 +69,6 @@ func populate(prefix string, v interface{}) error {
 			name = tag
 		}
 
-		// prepend prefix
-		if prefix != "" {
-			// An empty name takes on the prefix so that
-			// it can passthrough if the type is a struct or pointer struct.
-			if name == "" {
-				name = prefix
-			} else {
-				// An existing underscore means there will be 2 underscores. The user is given almost full reign on
-				// naming as long as it's valid.
-				name = prefix + "_" + name
-			}
-		}
-
 		// if the value type is a struct or struct pointer then recurse.
 		switch field.Kind() {
 		// explicity ignored list of types.
@@ -99,7 +82,7 @@ func populate(prefix string, v interface{}) error {
 			}
 
 			// get env value
-			envVal := os.Getenv(name)
+			envVal := d.GetVal(name)
 
 			// if no value found then don't set because it will
 			// overwrite possible defaults.
@@ -108,7 +91,7 @@ func populate(prefix string, v interface{}) error {
 			}
 			// set value to field.
 			if err := encode.SetField(field, envVal, vStruct.Type().Field(i)); err != nil {
-				return fmt.Errorf("'%s' from '%s' cannot be set to %s (%s)", envVal, name, vStruct.Type().Field(i).Name, field.Type())
+				return fmt.Errorf("'%s' from '%s' cannot be set to %s (%s) %v", envVal, name, vStruct.Type().Field(i).Name, field.Type(), err)
 			}
 		}
 	}

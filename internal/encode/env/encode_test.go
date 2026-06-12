@@ -69,6 +69,14 @@ func TestEncoder_Marshal(t *testing.T) {
 			Input:    &struct{ String string }{String: "Hello"},
 			Expected: "STRING=Hello\n",
 		},
+		"string with spaces": {
+			Input:    &struct{ String string }{String: "a b"},
+			Expected: "STRING=\"a b\"\n",
+		},
+		"string with hash": {
+			Input:    &struct{ String string }{String: "p#q"},
+			Expected: "STRING=\"p#q\"\n",
+		},
 		"with tags": {
 			Input: &struct {
 				Int  int    `env:"COUNT" comment:"number of people in a room"`

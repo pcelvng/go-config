@@ -285,8 +285,8 @@ func TestLoadFlag(t *testing.T) {
 func TestOptions(t *testing.T) {
 	opt := defaultOpts
 	opt &^= OptToml | OptFlag | OptFiles
-	if opt != 0b1100001 {
-		t.Errorf("Expected binary value of 110001 got %b", opt)
+	if opt != 0b11000011 {
+		t.Errorf("Expected binary value of 11000011 got %b", opt)
 	}
 
 	if opt.isEnabled(OptToml) {
@@ -294,6 +294,9 @@ func TestOptions(t *testing.T) {
 	}
 	if !opt.isEnabled(OptEnv) {
 		t.Error("env should be enabled")
+	}
+	if !opt.isEnabled(OptEnvFile) {
+		t.Error("envfile should be enabled")
 	}
 
 	// verify double disable
@@ -306,7 +309,7 @@ func TestOptions(t *testing.T) {
 	if v.options.isEnabled(OptFlag) {
 		t.Error("Flag 2nd should stay disabled")
 	}
-	if v.options != 0b1101111 {
-		t.Errorf("Expected only flag bit off %b!=%b", 0b1101111, v.options)
+	if v.options != 0b11011111 {
+		t.Errorf("Expected only flag bit off %b!=%b", 0b11011111, v.options)
 	}
 }

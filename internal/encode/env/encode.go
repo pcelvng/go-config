@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/iancoleman/strcase"
@@ -132,5 +133,25 @@ func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
 }
 
 func (e *Encoder) write(field string, value interface{}) {
-	fmt.Fprintf(e.buf, "%s=%v\n", field, value)
+	fmt.Fprintf(e.buf, "%s=%s\n", field, stringifyForEnv(value))
+}
+
+func stringifyForEnv(v interface{}) string {
+	switch x := v.(type) {
+	case string:
+		return formatEnvScalar(x)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case uint64:
+		return strconv.FormatUint(x, 10)
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return strconv.FormatFloat(x, 'g', -1, 64)
+	default:
+		return formatEnvScalar(fmt.Sprint(v))
+	}
 }
