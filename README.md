@@ -167,6 +167,56 @@ Per-field behavior is controlled with struct tags:
 | `req`    | Set to `true` to mark a field as required.                                             |
 | `ignore` | Set to `true` to ignore a field entirely (equivalent to `config:"ignore"`).            |
 
+### Nested structs and env prefixes
+
+When a field is itself a struct, the parent field's name becomes a **prefix** for every key inside it.
+For env vars the prefix is the field name in `SCREAMING_SNAKE_CASE`, joined to the nested keys with an
+underscore (`_`). The same idea applies to the other loaders using their respective casing.
+
+This means you should **not** repeat the parent name in the nested field's tag. Each nested field's `env`
+tag should contain only its own (leaf) name:
+
+```go
+type Config struct {
+	S3 S3Configuration
+}
+
+type S3Configuration struct {
+	Endpoint string `env:"ENDPOINT"` // -> S3_ENDPOINT
+	Region   string `env:"REGION"`   // -> S3_REGION
+	Bucket   string `env:"BUCKET"`   // -> S3_BUCKET
+}
+```
+
+A common gotcha is to include the parent name in the nested tag:
+
+```go
+type Config struct {
+	S3 S3Configuration
+}
+
+type S3Configuration struct {
+	Endpoint string `env:"S3_ENDPOINT"` // -> S3_S3_ENDPOINT (probably not what you want!)
+}
+```
+
+Because the `S3` parent field is automatically prefixed, the tag above resolves to `S3_S3_ENDPOINT`.
+
+To control the prefix itself, put an `env` tag on the **parent** struct field. This overrides the
+default (field-name) prefix:
+
+```go
+type Config struct {
+	S3 S3Configuration `env:"S3"` // Prefix is explicitly "S3".
+}
+
+type S3Configuration struct {
+	Endpoint string `env:"ENDPOINT"` // -> S3_ENDPOINT
+}
+```
+
+If you don't want any prefix at all, use the special `omitprefix` value described next.
+
 ### Omitting a struct prefix
 
 When a struct field is itself a struct, its name is used as a prefix for the nested fields. You can drop
