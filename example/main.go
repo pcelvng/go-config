@@ -43,7 +43,7 @@ func main() {
 	fmt.Println("waiting for " + appCfg.RunDuration.String() + "...")
 	<-time.NewTicker(appCfg.RunDuration).C
 
-	fmt.Printf("echo time: " + time.Now().Format(time.RFC3339) + "\n")
+	fmt.Println("echo time: " + time.Now().Format(time.RFC3339))
 	fmt.Println("done")
 }
 
