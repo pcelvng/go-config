@@ -151,21 +151,57 @@ export DB_PW= # The db password.
 
 ## Struct Tags
 
-Per-field behavior is controlled with struct tags:
+Per-field behavior is controlled with struct tags. The table below lists every supported tag, its
+accepted values, and an example.
 
-| Tag      | Description                                                                            |
-| -------- | -------------------------------------------------------------------------------------- |
-| `env`    | Override the env var name. Use `-` to ignore, or `omitprefix` on a struct (see below). |
-| `flag`   | Override the flag name. Supports a short alias, e.g. `flag:"username,u"`. Use `-` to ignore. |
-| `toml`   | Override the TOML key name.                                                            |
-| `yaml`   | Override the YAML key name.                                                            |
-| `json`   | Override the JSON key name.                                                            |
-| `help`   | Help text shown in the `--help` screen and as comments in generated templates.         |
-| `fmt`    | Time format for `time.Time` fields (Go reference layout or names like `RFC3339`).      |
-| `sep`    | Separator used for slice values (default is `,`).                                      |
-| `show`   | Set to `false` to redact a value when printing loaded config (e.g. secrets).           |
-| `req`    | Set to `true` to mark a field as required.                                             |
-| `ignore` | Set to `true` to ignore a field entirely (equivalent to `config:"ignore"`).            |
+| Tag      | Supported values                                                                                  | Example                          |
+| -------- | ------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `env`    | A custom env var name; `-` to ignore; `omitprefix` (struct fields only); optional `,string` suffix | `env:"DB_HOST"`, `env:"-"`        |
+| `flag`   | A custom flag name, optionally `name,alias` (alias must be one char); `-` to ignore; `omitprefix`; optional `,string` suffix | `flag:"username,u"`, `flag:"-"`  |
+| `toml`   | A custom TOML key name                                                                            | `toml:"db_host"`                 |
+| `yaml`   | A custom YAML key name; `,inline` to promote an embedded struct                                   | `yaml:"db_host"`, `yaml:",inline"` |
+| `json`   | A custom JSON key name                                                                            | `json:"db_host"`                 |
+| `help`   | Any text (shown in `--help` and as comments in generated templates)                               | `help:"The db host:port."`       |
+| `fmt`    | A Go time layout, or a named layout (`RFC3339`, `RFC1123`, `Kitchen`, `UnixDate`, etc.) for `time.Time` fields | `fmt:"RFC3339"`, `fmt:"2006-01-02"` |
+| `sep`    | Any separator string used for slice values (default `,`)                                          | `sep:";"`                        |
+| `show`   | `true` or `false` — set `false` to redact the value when printing config (default `true`)         | `show:"false"`                   |
+| `req`    | `true` or `false` — annotate the field as required in the help/printed output, e.g. `(required)` (default `false`; not auto-enforced — use the `Validator` interface to enforce) | `req:"true"`                     |
+| `ignore` | `true` or `false` — ignore the field entirely (default `false`)                                   | `ignore:"true"`                  |
+| `config` | `ignore` to ignore the field entirely (alternative to `ignore:"true"`)                            | `config:"ignore"`                |
+
+Notes:
+
+- **`,string` suffix** (env and flag only): treats slice elements as quoted strings, so values keep
+  surrounding quotes when generated and have them stripped when parsed — e.g. `env:"NAMES,string"`.
+- **`-` vs `omitprefix`**: `-` ignores a field for that loader; `omitprefix` keeps the field but drops
+  the struct's name from the generated prefix (see [Omitting a struct prefix](#omitting-a-struct-prefix)).
+- A field with no tag for a given loader uses its struct field name, re-cased to the loader's
+  convention (e.g. `SCREAMING_SNAKE` for env, `kebab-case` for flags).
+
+### All tags at a glance
+
+```go
+type Config struct {
+	// env/flag/file name overrides + a short flag alias.
+	Host string `env:"DB_HOST" flag:"host,H" toml:"db_host" yaml:"db_host" json:"db_host" help:"The db host:port." req:"true"`
+
+	// Redacted when printing loaded config.
+	Password string `flag:"pw,p" help:"The db password." show:"false"`
+
+	// time.Time with a named layout.
+	StartAt time.Time `fmt:"RFC3339"`
+
+	// Slice with a custom separator.
+	Tags []string `sep:";"`
+
+	// Ignored entirely (both forms are equivalent).
+	Internal  string `ignore:"true"`
+	Internal2 string `config:"ignore"`
+
+	// Ignored only for specific loaders.
+	OnlyFromFile string `env:"-" flag:"-"`
+}
+```
 
 ### Nested structs and env prefixes
 
@@ -243,6 +279,69 @@ type DB struct {
 export HOST=localhost:5432
 export UN= # no prefix
 export PW= # no prefix
+```
+
+### Embedded (anonymous) structs
+
+Embedding a struct **promotes** its fields, so they are treated as if they were declared directly on the
+parent — there is no type-name prefix. This mirrors how Go's own `encoding/json` handles embedded structs.
+
+```go
+type DB struct {
+	Host string
+	Port int
+}
+
+type Config struct {
+	DB           // embedded (anonymous)
+	Name string
+}
+```
+
+With the struct above, the fields are promoted across every loader:
+
+```sh
+# env (no "DB_" prefix)
+export HOST=localhost
+export PORT=5432
+export NAME=myapp
+```
+
+```sh
+# flags (no "db-" prefix)
+./myapp --host=localhost --port=5432 --name=myapp
+```
+
+```yaml
+# yaml / json / toml (top-level, no "db" nesting)
+host: localhost
+port: 5432
+name: myapp
+```
+
+Two things to keep in mind:
+
+- **YAML requires an inline tag.** `gopkg.in/yaml.v2` does not inline anonymous structs automatically, so
+  add `yaml:",inline"` to the embedded field if you load YAML:
+
+  ```go
+  type Config struct {
+      DB   `yaml:",inline"`
+      Name string
+  }
+  ```
+
+- **The embedded type must be exported.** Fields of an unexported embedded type (e.g. `db`) are not
+  settable via reflection and are skipped by the env and flag loaders.
+
+If you want the type name to act as a prefix instead of promoting the fields, use a **named** field rather
+than embedding:
+
+```go
+type Config struct {
+	DB   DB     // named field -> DB_HOST, --db-host, nested "db" in files
+	Name string
+}
 ```
 
 ## Long Help Descriptions

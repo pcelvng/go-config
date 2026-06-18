@@ -54,6 +54,13 @@ func nodeEnvName(n *node.Node) string {
 	case "omitprefix":
 		return ""
 	case "":
+		// Embedded (anonymous) struct fields are promoted: their fields are
+		// treated as if declared on the parent, so they contribute no prefix.
+		// This matches how json/toml handle embedded structs and Go's own
+		// encoding/json promotion. An explicit env tag overrides this.
+		if n.IsAnonymous() && n.IsStruct() && !n.IsTime() {
+			return ""
+		}
 		return util.ToScreamingSnake(n.FieldName())
 	default:
 		return ev

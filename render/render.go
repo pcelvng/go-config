@@ -596,6 +596,11 @@ func nodeName(n *node.Node, nameFrom, formatAs string) string {
 	}
 
 	if name == "" {
+		// Embedded (anonymous) struct fields are promoted: they contribute no
+		// name segment, consistent with how the env/flag loaders treat them.
+		if n.IsAnonymous() && n.IsStruct() && !n.IsTime() {
+			return ""
+		}
 		name = n.FieldName()
 	}
 
