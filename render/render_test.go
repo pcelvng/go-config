@@ -35,7 +35,7 @@ func TestRender(t *testing.T) {
 		Preamble:        "my preamble",
 		Postamble:       "my conclusion",
 		FieldNameFormat: " as field",
-	}, nGrps)
+	}, nGrps, "")
 	if err != nil {
 		fmt.Println(err.Error())
 	}

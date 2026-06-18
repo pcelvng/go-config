@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -613,7 +612,7 @@ func (g *GoConfig) loadAll(fPath string, nGrps []*node.Nodes) error {
 	var cfgB []byte
 	var err error
 	if fPath != "" {
-		cfgB, err = ioutil.ReadFile(fPath)
+		cfgB, err = os.ReadFile(fPath)
 		if err != nil {
 			return err
 		}
