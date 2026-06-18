@@ -563,7 +563,10 @@ func (g *GoConfig) parsePath(pth string) (fpth, ext string, err error) {
 		return "", "", nil
 	}
 
-	ext = path.Ext(pth)
+	// path.Ext returns the extension with a leading dot (e.g. ".yml") but
+	// registered loader extensions are stored without it (e.g. "yml"), so
+	// trim the dot to keep extension matching consistent.
+	ext = strings.TrimPrefix(path.Ext(pth), ".")
 	if ext == "" {
 		// maybe pth is just an extension.
 		if g.isValidExt(pth) {
