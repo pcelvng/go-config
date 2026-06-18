@@ -1,5 +1,6 @@
 # go-config
 
+[![Build Status](https://github.com/pcelvng/go-config/actions/workflows/build.yml/badge.svg)](https://github.com/pcelvng/go-config/actions/workflows/build.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pcelvng/go-config.svg)](https://pkg.go.dev/github.com/pcelvng/go-config)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pcelvng/go-config)](https://goreportcard.com/report/github.com/pcelvng/go-config)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
