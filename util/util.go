@@ -82,11 +82,10 @@ func ToLower(name string) string {
 	return strings.ToLower(name)
 }
 
-// IsStructPointer is a utility that checks if a given
-// interface is a struct pointer. If it is a struct pointer
-// then true is returned with no error message. Otherwise false
-// is returned with a specific error message indicating what type was passed.
-func IsStructPointer(v interface{}) (bool, error) {
+// IsStructPointer reports whether v is a non-nil struct pointer.
+// If so, true is returned with a nil error. Otherwise false is
+// returned with an error describing the actual type.
+func IsStructPointer(v any) (bool, error) {
 	// Verify that v is struct pointer. Should not be nil.
 	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
 		return false, fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
@@ -99,9 +98,9 @@ func IsStructPointer(v interface{}) (bool, error) {
 	return true, nil
 }
 
-// AreStructPointers functions the same as IsStructPointer but for many values.
-// If 'nil' is returned then all interfaces are struct pointers.
-func AreStructPointers(vs ...interface{}) error {
+// AreStructPointers is like IsStructPointer but for many values.
+// A nil return means every value is a non-nil struct pointer.
+func AreStructPointers(vs ...any) error {
 	for _, v := range vs {
 		_, err := IsStructPointer(v)
 		if err != nil {

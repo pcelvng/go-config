@@ -92,7 +92,7 @@ func TestStructNodes(t *testing.T) {
 		Chan       chan int
 		Complex64  complex64
 		Complex128 complex128
-		Interface  interface{}
+		Interface  any
 		Map        map[string]string
 	}
 

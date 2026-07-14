@@ -18,7 +18,7 @@ import (
 type Nodes struct {
 	nodesMap   map[string]*Node // Key is the dot "." separated field path.
 	nodesSlice []*Node          // Maintains same order as original config struct.
-	v          interface{}      // Underlying struct pointer.
+	v          any // Underlying struct pointer.
 }
 
 func (ns *Nodes) Map() map[string]*Node {
@@ -30,7 +30,7 @@ func (ns *Nodes) List() []*Node {
 }
 
 // StructPtr returns the underlying struct pointer.
-func (ns *Nodes) StructPtr() interface{} {
+func (ns *Nodes) StructPtr() any {
 	return ns.v
 }
 
@@ -467,7 +467,7 @@ func setField(value reflect.Value, s string) error {
 
 // SetStruct will attempt to assign "v" as the underlying node field value.
 // panics if "v" is not a struct.
-func (n *Node) SetStruct(v interface{}) {
+func (n *Node) SetStruct(v any) {
 	if n.FieldValue.Kind() != reflect.Struct {
 		panic(
 			fmt.Sprintf("attempting to assign struct to '%s' on non-struct type '%s'",
@@ -540,8 +540,8 @@ func (n *Node) SetTime(tv, timeFmt string) (usedFmt string, err error) {
 }
 
 // MakeAllNodes returns a slice of *Nodes from the provided options and
-// interfaces.
-func MakeAllNodes(o Options, vs ...interface{}) []*Nodes {
+// values. Each value must be a struct pointer.
+func MakeAllNodes(o Options, vs ...any) []*Nodes {
 	allNodes := make([]*Nodes, 0)
 	for _, v := range vs {
 		nodes := MakeNodes(o, v)
@@ -562,7 +562,7 @@ func MakeAllNodes(o Options, vs ...interface{}) []*Nodes {
 // MakeNodes only returns public fields. Thus there is no risk
 // of editing an un-editable field and causing a panic.
 //
-// s interface{} must be a struct pointer or MakeNodes will panic.
+// v must be a struct pointer or MakeNodes will panic.
 //
 // Certain types do not map for the purposes of reading in configuration values. Therefore
 // the following types are ignored:
@@ -581,7 +581,7 @@ func MakeAllNodes(o Options, vs ...interface{}) []*Nodes {
 //
 // The nodes returned from "MakeNodes" should not be deleted or modified except through sanctioned
 // node methods as there may be unintended side effects.
-func MakeNodes(o Options, v interface{}) *Nodes {
+func MakeNodes(o Options, v any) *Nodes {
 	_, err := util.IsStructPointer(v)
 	if err != nil {
 		panic(err.Error())
@@ -607,7 +607,7 @@ type Options struct {
 //
 // "v" is already known and assumed to be a struct pointer.
 // "prefix" is simply the "parent" full path.
-func makeNodes(prefix string, v interface{}, options Options) (nodes *Nodes) {
+func makeNodes(prefix string, v any, options Options) (nodes *Nodes) {
 	nodes = &Nodes{
 		nodesMap:   make(map[string]*Node),
 		nodesSlice: make([]*Node, 0),

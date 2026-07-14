@@ -13,7 +13,7 @@ func TestEncoder_Marshal(t *testing.T) {
 	type mStruct struct {
 		value string
 	}
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(args ...any) (any, error) {
 		b, err := NewEnvUnloader().Unload(node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
 		}, args[0]))
@@ -180,7 +180,7 @@ export STRING=
 }
 
 func TestEncoder_Marshal_Prefix(t *testing.T) {
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(args ...any) (any, error) {
 		b, err := NewEnvUnloader().WithPrefix("prefix").Unload(node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
 		}, args[0]))

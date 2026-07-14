@@ -117,7 +117,7 @@ func toStr(n *node.Node) string {
 	return val
 }
 
-func (u *EnvUnloader) doWrite(field, comment string, value interface{}) {
+func (u *EnvUnloader) doWrite(field, comment string, value any) {
 	if comment != "" {
 		comment = " # " + comment
 	}

@@ -60,7 +60,7 @@ func (c *Config) With(names ...string) *Config {
 
 // Load loads configuration and prints the customized startup screen.
 // Pass -h / --help to see the same branded screen as the help menu.
-func (c *Config) Load(appCfgs ...interface{}) error {
+func (c *Config) Load(appCfgs ...any) error {
 	if err := c.GoConfig.Load(appCfgs...); err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (c *Config) Load(appCfgs ...interface{}) error {
 }
 
 // LoadOrDie is like Load but prints the error and exits on failure.
-func (c *Config) LoadOrDie(appCfgs ...interface{}) {
+func (c *Config) LoadOrDie(appCfgs ...any) {
 	if err := c.Load(appCfgs...); err != nil {
 		fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())
 		os.Exit(1)

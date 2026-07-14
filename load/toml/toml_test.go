@@ -20,7 +20,7 @@ type SimpleStruct struct {
 }
 
 func TestLoad(t *testing.T) {
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(args ...any) (any, error) {
 		c := &SimpleStruct{}
 		err := NewTOMLLoadUnloader().Load(bTOML, node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
