@@ -15,7 +15,7 @@ func NewTOMLLoadUnloader() *TOMLLoadUnloader {
 type TOMLLoadUnloader struct{}
 
 // Load implements the Loader interface for loading a TOML config.
-func (_ TOMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
+func (TOMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 	for _, nGrp := range nGrps {
 		// Provide the underlying struct directly since this is
 		// not a custom implementation relying on a third party.
@@ -29,7 +29,7 @@ func (_ TOMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 }
 
 // Unload implements the Unloader interface for unloading a TOML config.
-func (_ TOMLLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
+func (TOMLLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	tEnc := toml.NewEncoder(buf)
 	for _, nGrp := range nGrps {

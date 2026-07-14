@@ -97,6 +97,7 @@ func TestStructNodes(t *testing.T) {
 	}
 
 	ss := &SimpleStruct{}
+	_ = ss.myPrivateInt // ensure private fields are present but ignored by MakeNodes
 	nodes := MakeNodes(Options{
 		NoFollow:    []string{"time.Time"},
 		IgnoreTypes: []string{"node.SpecialStruct", "node.SpecialInt"},
@@ -287,7 +288,7 @@ func TestStructNodes(t *testing.T) {
 	assert.Equal(t, []*int{&one, &two, &three}, ss.SliceIntPtr)
 	assert.Nil(t, nodes["SliceString"].SetSlice([]string{"one", "2", "three"}))
 	assert.Equal(t, []string{"one", "2", "three"}, ss.SliceString)
-	assert.Panics(t, func() { nodes["String"].SetSlice([]string{"error"}) }) // panic - not a slice.
+	assert.Panics(t, func() { _ = nodes["String"].SetSlice([]string{"error"}) }) // panic - not a slice.
 
 	// Set time.
 	usedFmt, err := nodes["Time"].SetTime("2020-01-01T15:04:05Z", "") // default time: "2006-01-02T15:04:05Z07:00"

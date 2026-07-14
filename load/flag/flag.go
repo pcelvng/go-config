@@ -129,11 +129,11 @@ func (fs *flagSet) makeFlags(nGrp *node.Nodes) error {
 
 		// If the flag name or it's alias is already defined then return an error.
 		if fs.fNames[f.Name] {
-			return errors.New(fmt.Sprintf("flag name '%v' defined more than once", f.Name))
+			return fmt.Errorf("flag name '%v' defined more than once", f.Name)
 		}
 
 		if fs.fNames[f.Alias] {
-			return errors.New(fmt.Sprintf("flag alias '%v' defined more than once", f.Alias))
+			return fmt.Errorf("flag alias '%v' defined more than once", f.Alias)
 		}
 
 		// Register name(s)
@@ -329,17 +329,13 @@ func isAnyIgnored(nodes []*node.Node) bool {
 
 // isIgnored checks if the node is ignored.
 func isIgnored(n *node.Node) bool {
-	if getFlagTag(n) == "-" {
-		return true
-	}
-
-	return false
+	return getFlagTag(n) == "-"
 }
 
 // getFlagTag returns the 'flag' tag value. It
 // knows to exclude the supported ',string' suffix option if present.
 func getFlagTag(n *node.Node) string {
-	return strings.Replace(n.GetTag(flagTag), ",string", "", -1)
+	return strings.ReplaceAll(n.GetTag(flagTag), ",string", "")
 }
 
 // isFlagString returns true when the flag tag value has the suffix ",string".
@@ -465,7 +461,7 @@ func defaultGenHelp(preamble, conclusion string, fGroups [][]*Flag) string {
 // caller). Pass `w` == 0 to do no wrapping
 func wrap(i, w int, s string) string {
 	if w == 0 {
-		return strings.Replace(s, "\n", "\n"+strings.Repeat(" ", i), -1)
+		return strings.ReplaceAll(s, "\n", "\n"+strings.Repeat(" ", i))
 	}
 
 	// space between indent i and end of line width w into which
@@ -483,7 +479,7 @@ func wrap(i, w int, s string) string {
 	}
 	// If still not enough space then don't even try to wrap.
 	if wrap < 24 {
-		return strings.Replace(s, "\n", r, -1)
+		return strings.ReplaceAll(s, "\n", r)
 	}
 
 	// Try to avoid short orphan words on the final line, by
@@ -495,14 +491,14 @@ func wrap(i, w int, s string) string {
 	// Handle first line, which is indented by the caller (or the
 	// special case above)
 	l, s = wrapN(wrap, slop, s)
-	r = r + strings.Replace(l, "\n", "\n"+strings.Repeat(" ", i), -1)
+	r = r + strings.ReplaceAll(l, "\n", "\n"+strings.Repeat(" ", i))
 
 	// Now wrap the rest
 	for s != "" {
 		var t string
 
 		t, s = wrapN(wrap, slop, s)
-		r = r + "\n" + strings.Repeat(" ", i) + strings.Replace(t, "\n", "\n"+strings.Repeat(" ", i), -1)
+		r = r + "\n" + strings.Repeat(" ", i) + strings.ReplaceAll(t, "\n", "\n"+strings.Repeat(" ", i))
 	}
 
 	return r

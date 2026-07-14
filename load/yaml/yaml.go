@@ -13,7 +13,7 @@ func NewYAMLLoadUnloader() *YAMLLoadUnloader {
 type YAMLLoadUnloader struct{}
 
 // Load implements the Loader interface for loading a YAML config.
-func (_ YAMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
+func (YAMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 	for _, nGrp := range nGrps {
 		err := yaml.Unmarshal(b, nGrp.StructPtr())
 		if err != nil {
@@ -25,7 +25,7 @@ func (_ YAMLLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 }
 
 // Unload implements the Unloader interface for unloading a YAML config.
-func (_ YAMLLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
+func (YAMLLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
 	allB := make([]byte, 0)
 	for _, nGrp := range nGrps {
 		b, err := yaml.Marshal(nGrp.StructPtr())

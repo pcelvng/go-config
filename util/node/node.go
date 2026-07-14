@@ -18,7 +18,7 @@ import (
 type Nodes struct {
 	nodesMap   map[string]*Node // Key is the dot "." separated field path.
 	nodesSlice []*Node          // Maintains same order as original config struct.
-	v          any // Underlying struct pointer.
+	v          any              // Underlying struct pointer.
 }
 
 func (ns *Nodes) Map() map[string]*Node {
@@ -301,7 +301,7 @@ func (n *Node) SliceString() []string {
 		itemValue := n.FieldValue.Index(i)
 
 		// The slice value may be a pointer to a basic type.
-		if itemValue.Kind() == reflect.Ptr {
+		if itemValue.Kind() == reflect.Pointer {
 			itemValue = itemValue.Elem()
 		}
 
@@ -347,7 +347,7 @@ func (n *Node) TimeString(timeFmt string) string {
 func (n *Node) SetFieldValue(s string) error {
 	// Panics if called on pointer, slice or struct.
 	switch n.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		panic(fmt.Sprintf("node '%s' type is a pointer", n.FullName()))
 	case reflect.Slice:
 		// Should call "SetSlice" to handle slices.
@@ -444,12 +444,12 @@ func setField(value reflect.Value, s string) error {
 
 		value.SetUint(i)
 	case reflect.Float32, reflect.Float64:
-		f, err := strconv.ParseFloat(s, 0)
+		f, err := strconv.ParseFloat(s, value.Type().Bits())
 		if err != nil {
 			return err
 		}
 		value.SetFloat(f)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		// Create non-pointer type and recursively assign.
 		z := reflect.New(value.Type().Elem())
 		err := setField(z.Elem(), s)
@@ -625,7 +625,7 @@ func makeNodes(prefix string, v any, options Options) (nodes *Nodes) {
 		// Check if field is pointer and follow to get the actual
 		// value. If the pointer is nil then initialize.
 		field := rawField
-		if rawField.Kind() == reflect.Ptr {
+		if rawField.Kind() == reflect.Pointer {
 			if rawField.IsNil() {
 				z := reflect.New(rawField.Type().Elem())
 				rawField.Set(z)
@@ -648,7 +648,7 @@ func makeNodes(prefix string, v any, options Options) (nodes *Nodes) {
 		// Skip slice if underlying type is not a basic type.
 		if field.Kind() == reflect.Slice {
 			baseType := reflect.TypeOf(field.Interface()).Elem()
-			if baseType.Kind() == reflect.Ptr {
+			if baseType.Kind() == reflect.Pointer {
 				baseType = baseType.Elem()
 			}
 			if !isBasicType(baseType.Kind()) {
@@ -771,7 +771,7 @@ func followStruct(typeName string, noFollow []string) bool {
 
 // Parent returns the parent struct node if one exists.
 func Parent(child *Node, nodes map[string]*Node) (parent *Node) {
-	parent, _ = nodes[child.ParentName()]
+	parent = nodes[child.ParentName()]
 	return parent
 }
 

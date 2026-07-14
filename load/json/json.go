@@ -14,7 +14,7 @@ func NewJSONLoadUnloader() *JSONLoadUnloader {
 type JSONLoadUnloader struct{}
 
 // Load implements the Loader interface for loading a JSON config.
-func (_ JSONLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
+func (JSONLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 	for _, nGrp := range nGrps {
 		// Provide the underlying struct directly since this is
 		// not a custom implementation relying on a third party.
@@ -28,7 +28,7 @@ func (_ JSONLoadUnloader) Load(b []byte, nGrps []*node.Nodes) error {
 }
 
 // Unload implements the Unloader interface for unloading a JSON config.
-func (_ JSONLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
+func (JSONLoadUnloader) Unload(nGrps []*node.Nodes) ([]byte, error) {
 	allB := make([]byte, 0)
 	for _, nGrp := range nGrps {
 		b, err := json.MarshalIndent(nGrp.StructPtr(), "", "\t")

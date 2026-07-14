@@ -164,10 +164,6 @@ type GoConfig struct {
 	// lus contains a map by Name of registered LoadUnloaders.
 	lus map[string]*LoadUnloader
 
-	// flgLoader holds the flag loader for pre-loading to handle the help screen and
-	// standard options.
-	flgLoader *flg.Loader
-
 	// stdFlgs is an instance of the standard flags for supporting pre-load
 	// functionality such showing a help screen, application version, generating
 	// config templates and determining which config file to load from.
@@ -452,27 +448,6 @@ func (g *GoConfig) loaderFromNameOrExt(name, ext string) load.Loader {
 	return nil
 }
 
-func (g *GoConfig) loaderFromExt(ext string) (load.Loader, error) {
-	for _, lu := range g.lus {
-		for _, lExt := range lu.FileExts {
-			if ext == lExt {
-				return lu.Loader, nil
-			}
-		}
-	}
-
-	return nil, &LoaderNotFoundErr{lExt: ext}
-}
-
-func (g *GoConfig) loaderFromName(name string) (load.Loader, error) {
-	lu, ok := g.lus[name]
-	if !ok {
-		return nil, &LoaderNotFoundErr{lExt: name}
-	}
-
-	return lu.Loader, nil
-}
-
 type UnloaderNotFoundErr struct {
 	lName string // expected unloader name
 	lExt  string // expected unloader file extension
@@ -518,22 +493,22 @@ func (g *GoConfig) prepStdFlags(nGrp *node.Nodes) {
 	// "config" standard flag.
 	exts := g.allExts()
 	if len(exts) > 0 {
-		nGrp.SetTag("ConfigPath", "help", fmt.Sprintf(cfgPathHelp, strings.Join(exts, "|")))
+		_ = nGrp.SetTag("ConfigPath", "help", fmt.Sprintf(cfgPathHelp, strings.Join(exts, "|")))
 	} else {
-		nGrp.SetTag("ConfigPath", "flag", "-")
+		_ = nGrp.SetTag("ConfigPath", "flag", "-")
 	}
 
 	// "gen" standard flag.
 	allNames := g.allNames()
 	if len(allNames) > 0 {
-		nGrp.SetTag("Gen", "help", fmt.Sprintf(genConfigHelp, strings.Join(allNames, "|")))
+		_ = nGrp.SetTag("Gen", "help", fmt.Sprintf(genConfigHelp, strings.Join(allNames, "|")))
 	} else {
-		nGrp.SetTag("Gen", "flag", "-") // no exts - ignore
+		_ = nGrp.SetTag("Gen", "flag", "-") // no exts - ignore
 	}
 
 	// "version" standard flag.
 	if g.version == "" {
-		nGrp.SetTag("ShowVersion", "flag", "-")
+		_ = nGrp.SetTag("ShowVersion", "flag", "-")
 	}
 }
 
@@ -687,7 +662,7 @@ func (g *GoConfig) With(newWith ...string) *GoConfig {
 
 func loadUnloaderNames(lus map[string]*LoadUnloader) []string {
 	names := []string{"flag"}
-	for name, _ := range lus {
+	for name := range lus {
 		names = append(names, name)
 	}
 

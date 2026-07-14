@@ -98,9 +98,9 @@ type embeddedConfig struct {
 // NOT used as a prefix.
 func TestEmbeddedStructPromotionEnv(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("HOST", "promoted-host")
-	os.Setenv("PORT", "5432")
-	os.Setenv("NAME", "myapp")
+	t.Setenv("HOST", "promoted-host")
+	t.Setenv("PORT", "5432")
+	t.Setenv("NAME", "myapp")
 
 	c := &embeddedConfig{}
 	if err := New().DisableStdFlags().With("env").Load(c); err != nil {
