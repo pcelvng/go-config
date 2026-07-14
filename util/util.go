@@ -87,7 +87,7 @@ func ToLower(name string) string {
 // returned with an error describing the actual type.
 func IsStructPointer(v any) (bool, error) {
 	// Verify that v is struct pointer. Should not be nil.
-	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
+	if value := reflect.ValueOf(v); value.Kind() != reflect.Pointer || value.IsNil() {
 		return false, fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
 
 		// Must be pointing to a struct.

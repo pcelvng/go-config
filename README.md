@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/pcelvng/go-config/actions/workflows/build.yml/badge.svg)](https://github.com/pcelvng/go-config/actions/workflows/build.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pcelvng/go-config.svg)](https://pkg.go.dev/github.com/pcelvng/go-config)
-[![Go Report Card](https://goreportcard.com/badge/github.com/pcelvng/go-config)](https://goreportcard.com/report/github.com/pcelvng/go-config)
+[![golangci-lint](https://github.com/pcelvng/go-config/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/pcelvng/go-config/actions/workflows/golangci-lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Effortless, stateful Go configuration.

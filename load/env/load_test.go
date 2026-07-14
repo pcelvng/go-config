@@ -75,7 +75,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	}
 
 	for k, v := range envMap {
-		os.Setenv(k, v)
+		_ = os.Setenv(k, v)
 	}
 
 	type EmbeddedOptions struct {
@@ -230,7 +230,7 @@ func TestDecoder_Unmarshal2(t *testing.T) {
 	assert.Equal(t, "vPREFIX_STRING", options.PString)
 
 	for k := range envMap {
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 	}
 
 	// 'omitprefix' should return error when placed on
