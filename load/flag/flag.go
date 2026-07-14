@@ -17,6 +17,7 @@ var (
 	fmtTag  = "fmt"
 	helpTag = "help"
 	sepTag  = "sep"
+	showTag = "show"
 
 	defaultSep = ","
 )
@@ -191,6 +192,16 @@ func (f *Flag) Set(s string) error {
 
 func (f *Flag) Help() string {
 	return f.n.GetTag(helpTag)
+}
+
+// Show reports whether the underlying field value should be displayed.
+// Fields tagged `show:"false"` return false so custom HelpFuncs can redact them.
+func (f *Flag) Show() bool {
+	show := f.n.GetTag(showTag)
+	if show == "" {
+		return true
+	}
+	return f.n.GetBoolTag(showTag)
 }
 
 // ValueType returns the string representation of the type
