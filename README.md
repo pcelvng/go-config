@@ -458,8 +458,8 @@ or `config.NewWithPrefix(prefix)` when you need an isolated instance.
 
 | Function / Method        | Description                                                       |
 | ------------------------ | ----------------------------------------------------------------- |
-| `Load(cfgs...)`          | Load configuration into one or more struct pointers.              |
-| `LoadOrDie(cfgs...)`     | Like `Load` but prints the error and exits on failure.            |
+| `Load(cfgs ...any)`      | Load configuration into one or more struct pointers.              |
+| `LoadOrDie(cfgs ...any)` | Like `Load` but prints the error and exits on failure.            |
 | `With(names...)`         | Select and order the loaders to use.                              |
 | `Show()` / `ShowValues()`| Print the loaded configuration values.                            |
 | `Version(s)`             | Set the app version and enable the `--version` flag.              |

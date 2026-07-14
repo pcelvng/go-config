@@ -20,12 +20,14 @@ import (
 )
 
 // Load is a package wrapper around *GoConfig.Load().
-func Load(appCfgs ...interface{}) error {
+// Each argument must be a non-nil struct pointer.
+func Load(appCfgs ...any) error {
 	return defaultCfg.Load(appCfgs...)
 }
 
 // LoadOrDie is a package wrapper around *GoConfig.LoadOrDie().
-func LoadOrDie(appCfgs ...interface{}) {
+// Each argument must be a non-nil struct pointer.
+func LoadOrDie(appCfgs ...any) {
 	defaultCfg.LoadOrDie(appCfgs...)
 }
 
@@ -224,7 +226,7 @@ type stdFlgs struct {
 // - post load validation by:
 //   - enforcing "validate" struct field tag directives TODO
 //   - calling the custom Validate method (if implemented) TODO
-func (g *GoConfig) Load(appCfgs ...interface{}) error {
+func (g *GoConfig) Load(appCfgs ...any) error {
 	if !g.initialized {
 		panic("uninitialized go config")
 	}
@@ -239,7 +241,7 @@ func (g *GoConfig) Load(appCfgs ...interface{}) error {
 		return err
 	}
 
-	cfgs := make([]interface{}, 0)
+	cfgs := make([]any, 0)
 	if !g.stdFlgsDisabled {
 		cfgs = append(cfgs, g.stdFlgs)
 	}
@@ -651,7 +653,7 @@ func (g *GoConfig) loadAll(fPath string, nGrps []*node.Nodes) error {
 }
 
 // LoadOrDie calls Load and prints an error message and exits if there is an error.
-func (g *GoConfig) LoadOrDie(appCfg ...interface{}) {
+func (g *GoConfig) LoadOrDie(appCfg ...any) {
 	err := g.Load(appCfg...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "err: %v\n", err.Error())

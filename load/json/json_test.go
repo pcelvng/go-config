@@ -16,7 +16,7 @@ type SimpleStruct struct {
 var bJSON = []byte(`{"name": "json", "value": 10, "enable":true}`)
 
 func TestLoad(t *testing.T) {
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(args ...any) (any, error) {
 		c := &SimpleStruct{}
 		err := NewJSONLoadUnloader().Load(bJSON, node.MakeAllNodes(node.Options{
 			NoFollow: []string{"time.Time"},
