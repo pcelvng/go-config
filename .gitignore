@@ -13,4 +13,5 @@
 
 .idea/
 vendor/*
-example/example
+examples/basic/basic
+examples/custom-startup/custom-startup
