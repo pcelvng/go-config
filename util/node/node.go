@@ -204,6 +204,12 @@ func (n *Node) IsString() bool {
 	return n.Kind() == reflect.String
 }
 
+// IsAnonymous reports whether the node represents an embedded (anonymous)
+// struct field.
+func (n *Node) IsAnonymous() bool {
+	return n.Field.Anonymous
+}
+
 func (n *Node) IsDuration() bool {
 	return n.ValueType() == "time.Duration"
 }
