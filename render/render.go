@@ -15,6 +15,7 @@ var (
 	showTag   = "show"
 	fmtTag    = "fmt"
 	ignoreTag = "ignore"
+	helpTag   = "help"
 	sepTag    = "sep"
 	flagTag   = "flag"
 	envTag    = "env"
@@ -68,6 +69,7 @@ type Field struct {
 	Type        string
 	Req         bool
 	Show        bool
+	Help        string
 	TimeFmt     string // Effective 'fmt' value for time.Time fields.
 
 	Node          *node.Node
@@ -221,6 +223,11 @@ func defaultRenderer(preamble, conclusion string, fieldGroups [][]*Field) []byte
 				line += " (required)"
 			}
 
+			// help
+			if f.Help != "" {
+				line += " (" + f.Help + ")"
+			}
+
 			lines = append(lines, line)
 		}
 
@@ -360,6 +367,7 @@ func (r *Renderer) fieldGroup(ngrp *node.Nodes) ([]*Field, error) {
 			Type:    node.ValueType(n),
 			Req:     n.GetBoolTag(reqTag),
 			Show:    isShown(n),
+			Help:    n.GetTag(helpTag),
 			TimeFmt: timeFmt(n),
 			Node:    n,
 		})

@@ -44,6 +44,7 @@ func TestRender(t *testing.T) {
 	rm.MyString = "newmystringval"
 	rm.IntSlice = []int{4, 5, 6}
 	rm.ES.String = "nowpopulated"
-	r.Render()
-	//fmt.Println(string(b))
+	out := string(r.Render())
+	assert.Contains(t, out, "(my help msg)")
+	assert.Equal(t, "my help msg", r.fGrps[0][0].Help)
 }
