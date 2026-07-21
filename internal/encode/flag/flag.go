@@ -19,7 +19,8 @@ import (
 
 type Flags struct {
 	*flag.FlagSet
-	defaults map[string]string
+	defaults  map[string]string
+	remaining []string
 }
 
 // New creates a custom flagset based on the struct i.
@@ -132,14 +133,78 @@ func New(i interface{}) (*Flags, error) {
 	return flg, nil
 }
 
-// Parse the internal flags and the user defined flags
+// Parse the internal flags and the user defined flags.
+// Positional args may appear before, after, or between flags.
 func (f *Flags) Parse() error {
 	// add other defined flags
 	flag.VisitAll(func(flg *flag.Flag) {
 		f.Var(flg.Value, flg.Name, flg.Usage)
 	})
 
-	return f.FlagSet.Parse(os.Args[1:])
+	flagArgs, posArgs := splitFlagArgs(f.FlagSet, os.Args[1:])
+	if err := f.FlagSet.Parse(flagArgs); err != nil {
+		return err
+	}
+	if posArgs == nil {
+		posArgs = []string{}
+	}
+	f.remaining = posArgs
+	return nil
+}
+
+// Args returns non-flag arguments remaining after Parse.
+// Unlike flag.FlagSet.Args, this includes positionals that appeared before flags.
+func (f *Flags) Args() []string {
+	return f.remaining
+}
+
+// splitFlagArgs separates flag arguments from positional arguments so the
+// standard library FlagSet (which stops at the first non-flag) can still
+// parse flags that appear after positionals.
+func splitFlagArgs(fs *flag.FlagSet, args []string) (flagArgs, posArgs []string) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			posArgs = append(posArgs, args[i+1:]...)
+			break
+		}
+		if len(a) < 2 || a[0] != '-' {
+			posArgs = append(posArgs, a)
+			continue
+		}
+
+		name := a[1:]
+		if strings.HasPrefix(a, "--") {
+			name = a[2:]
+		}
+		if eq := strings.IndexByte(name, '='); eq >= 0 {
+			flagArgs = append(flagArgs, a)
+			continue
+		}
+
+		flagArgs = append(flagArgs, a)
+		if isBoolFlag(fs, name) {
+			continue
+		}
+		if i+1 >= len(args) {
+			continue
+		}
+		i++
+		flagArgs = append(flagArgs, args[i])
+	}
+	return flagArgs, posArgs
+}
+
+func isBoolFlag(fs *flag.FlagSet, name string) bool {
+	flg := fs.Lookup(name)
+	if flg == nil {
+		return false
+	}
+	type boolFlag interface {
+		IsBoolFlag() bool
+	}
+	bf, ok := flg.Value.(boolFlag)
+	return ok && bf.IsBoolFlag()
 }
 
 // Unmarshal the given struct from the flagSet

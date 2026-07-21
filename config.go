@@ -32,6 +32,8 @@ type goConfig struct {
 	genConfig   *string
 	configPath  *string
 
+	defaultConfigPath string
+
 	flags *flg.Flags
 }
 
@@ -141,8 +143,8 @@ func (g *goConfig) Load() error {
 			g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml,env)")
 			flag.StringVar(g.genConfig, "gen", "", "")
 		}
-		g.configPath = flag.String("c", "", "path for config file")
-		flag.StringVar(g.configPath, "config", "", "")
+		g.configPath = flag.String("c", g.defaultConfigPath, "path for config file")
+		flag.StringVar(g.configPath, "config", g.defaultConfigPath, "")
 	}
 
 	f.Usage = func() {
@@ -259,7 +261,24 @@ func LoadFlag(c interface{}) error {
 	if err := f.Parse(); err != nil {
 		return err
 	}
+	defaultCfg.flags = f
 	return f.Unmarshal(c)
+}
+
+// Args returns the non-flag command-line arguments remaining after Load,
+// LoadOrDie, or LoadFlag. Positional args may appear before, after, or between
+// flags. Returns nil if flags have not been parsed yet.
+func Args() []string {
+	return defaultCfg.Args()
+}
+
+// Args returns the non-flag command-line arguments remaining after Load or
+// LoadOrDie on this config instance. Returns nil if flags have not been parsed.
+func (g *goConfig) Args() []string {
+	if g.flags == nil {
+		return nil
+	}
+	return g.flags.Args()
 }
 
 // Version string that describes the app which enables the -v (version) flag.
@@ -273,6 +292,14 @@ func (g *goConfig) Version(s string) *goConfig {
 // Description for the app, this message is prepended to the help flag
 func (g *goConfig) Description(s string) *goConfig {
 	g.description = s
+	return g
+}
+
+// ConfigPath sets the default config file path used when -c or -config is not
+// provided. The path appears as the default in help output and is loaded
+// automatically. An explicit -c or -config flag overrides this value.
+func (g *goConfig) ConfigPath(path string) *goConfig {
+	g.defaultConfigPath = path
 	return g
 }
 

@@ -169,6 +169,21 @@ Available Flags:
 
 ```
 
+You may set a default config file path. When set, the file loads automatically if `-c` or
+`-config` is not provided, and the path appears as the default in help output. An explicit
+`-c` or `-config` flag overrides the default.
+
+```sh
+func main() {
+    appCfg := options{}
+    err := config.New(&appCfg).ConfigPath("config.toml").Load()
+    if err != nil {
+        println("err: %v", err.Error())
+        os.Exit(0)
+    }
+}
+```
+
 You may disable flags entirely. Note, general config flags such as the '-gen' flag are not turned off and will still
 be shown on the help screen.
 

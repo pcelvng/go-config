@@ -370,6 +370,70 @@ func TestUnmarshal(t *testing.T) {
 	trial.New(fn, cases).SubTest(t)
 }
 
+func TestFlags_Args(t *testing.T) {
+	type input struct {
+		args []string
+	}
+	type output struct {
+		Args   []string `flag:"-"`
+		Name   string
+		Enable bool
+	}
+	fn := func(v ...interface{}) (interface{}, error) {
+		in := v[0].(input)
+		defer func() {
+			// clean up flag state so later tests can re-register flags
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		}()
+
+		c := &output{}
+		os.Args = append([]string{"go-config"}, in.args...)
+		f, err := New(c)
+		if err != nil {
+			return nil, err
+		}
+		if err := f.Parse(); err != nil {
+			return nil, err
+		}
+		if err := f.Unmarshal(c); err != nil {
+			return nil, err
+		}
+		c.Args = f.Args()
+		return c, nil
+	}
+	cases := trial.Cases{
+		"no positional args": {
+			Input:    input{args: []string{"-name=foo"}},
+			Expected: &output{Args: []string{}, Name: "foo"},
+		},
+		"positional after flags": {
+			Input:    input{args: []string{"-name=foo", "file1", "file2"}},
+			Expected: &output{Args: []string{"file1", "file2"}, Name: "foo"},
+		},
+		"positional before flags": {
+			Input:    input{args: []string{"file1", "file2", "-name=foo"}},
+			Expected: &output{Args: []string{"file1", "file2"}, Name: "foo"},
+		},
+		"positional before and after flags": {
+			Input:    input{args: []string{"before", "-name=foo", "after"}},
+			Expected: &output{Args: []string{"before", "after"}, Name: "foo"},
+		},
+		"interleaved flags and positionals": {
+			Input:    input{args: []string{"a", "-name=foo", "b", "-enable", "c"}},
+			Expected: &output{Args: []string{"a", "b", "c"}, Name: "foo", Enable: true},
+		},
+		"space-separated flag value among positionals": {
+			Input:    input{args: []string{"pos1", "-name", "foo", "pos2"}},
+			Expected: &output{Args: []string{"pos1", "pos2"}, Name: "foo"},
+		},
+		"double-dash ends flag parsing": {
+			Input:    input{args: []string{"-name=foo", "--", "-not-a-flag", "pos"}},
+			Expected: &output{Args: []string{"-not-a-flag", "pos"}, Name: "foo"},
+		},
+	}
+	trial.New(fn, cases).SubTest(t)
+}
+
 type mAlias int
 
 var nums = []string{"zero", "one", "two", "three", "four", "five"}
