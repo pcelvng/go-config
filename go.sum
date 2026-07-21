@@ -14,8 +14,6 @@ github.com/iancoleman/strcase v0.3.0 h1:nTXanmYxhfFAMjZL34Ov6gkzEsSJZ5DbhxWjvSAS
 github.com/iancoleman/strcase v0.3.0/go.mod h1:iwCmte+B7n89clKwxIoIXy/HfoL7AsD47ZCWhYzw7ho=
 github.com/jbsmith7741/go-tools v0.4.1 h1:qqHI0imezT1SLCd43df4sBZ44b4bndfo0W9R9B53/kA=
 github.com/jbsmith7741/go-tools v0.4.1/go.mod h1:8v8ffjiI3qOs6epawzxmPB7AOKoNNxZHKPl2VUWXoyY=
-github.com/jbsmith7741/trial v0.3.1 h1:JZ0/w3lhfH4iacf9R2DnZWtTMa/Uf4O13gnuMLTub/M=
-github.com/jbsmith7741/trial v0.3.1/go.mod h1:M4FQWUgVpPY2+i53L2nSB0AyPc86kSTIigcr9Q7XQlY=
 github.com/lib/pq v1.8.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

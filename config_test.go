@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jbsmith7741/trial"
+	"github.com/hydronica/trial"
 )
 
 type testStruct struct {
@@ -34,8 +34,7 @@ func TestGoConfig_Load(t *testing.T) {
 		envs   map[string]string
 		flags  []string
 	}
-	fn := func(v ...interface{}) (interface{}, error) {
-		in := v[0].(input)
+	fn := func(in input) (testStruct, error) {
 		if in.envs == nil {
 			in.envs = make(map[string]string)
 		}
@@ -44,7 +43,7 @@ func TestGoConfig_Load(t *testing.T) {
 		}
 		for k, v := range in.envs {
 			if err := os.Setenv(k, v); err != nil {
-				return nil, err
+				return testStruct{}, err
 			}
 		}
 		defer func() {
@@ -59,7 +58,7 @@ func TestGoConfig_Load(t *testing.T) {
 		err := New(&in.config).Load()
 		return in.config, err
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, testStruct]{
 		"default": {
 			Input: input{
 				config: testStruct{
@@ -295,8 +294,7 @@ func TestArgs(t *testing.T) {
 		Args []string
 		Name string
 	}
-	fn := func(v ...interface{}) (interface{}, error) {
-		in := v[0].(input)
+	fn := func(in input) (output, error) {
 		defer func() {
 			// clean up flag state so later tests can re-register flags
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -307,11 +305,11 @@ func TestArgs(t *testing.T) {
 		os.Args = append([]string{"go-config"}, in.args...)
 		os.Unsetenv("NAME")
 		if err := Load(c); err != nil {
-			return nil, err
+			return output{}, err
 		}
 		return output{Args: Args(), Name: c.Name}, nil
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, output]{
 		"no positional args": {
 			Input:    input{args: []string{"-name=foo"}},
 			Expected: output{Args: []string{}, Name: "foo"},
@@ -357,8 +355,7 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 		configPath string
 		flags      []string
 	}
-	fn := func(v ...interface{}) (interface{}, error) {
-		in := v[0].(input)
+	fn := func(in input) (testStruct, error) {
 		defer func() {
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 		}()
@@ -373,7 +370,7 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 		err := New(&c).ConfigPath(in.configPath).Disable(OptEnv | OptEnvFile).Load()
 		return c, err
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, testStruct]{
 		"loads default path when -c not provided": {
 			Input: input{configPath: "test/test.toml"},
 			Expected: testStruct{

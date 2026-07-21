@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jbsmith7741/go-tools/appenderr"
-	"github.com/jbsmith7741/trial"
+	"github.com/hydronica/trial"
 )
 
 func TestDecoder_Unmarshal(t *testing.T) {
@@ -61,10 +61,9 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		config interface{}
 		args   map[string]string
 	}
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(in input) (interface{}, error) {
 		os.Clearenv()
 		errs := appenderr.New()
-		in := args[0].(input)
 		if in.config == nil {
 			in.config = &tConfig{}
 		}
@@ -76,7 +75,7 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		errs.Add(d.Unmarshal(in.config))
 		return in.config, errs.ErrOrNil()
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, interface{}]{
 		"default": {
 			Input:    input{args: map[string]string{}},
 			Expected: &tConfig{},

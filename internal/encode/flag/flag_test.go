@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jbsmith7741/trial"
+	"github.com/hydronica/trial"
 )
 
 func TestNew(t *testing.T) {
@@ -20,8 +20,8 @@ func TestNew(t *testing.T) {
 	type Astring string
 	type AFloat64 float64
 	type Auint uint
-	fn := func(args ...interface{}) (interface{}, error) {
-		f, err := New(args[0])
+	fn := func(in interface{}) (map[string]*tFlag, error) {
+		f, err := New(in)
 		if err != nil {
 			return nil, err
 		}
@@ -32,7 +32,7 @@ func TestNew(t *testing.T) {
 		})
 		return result, nil
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[interface{}, map[string]*tFlag]{
 		"non pointer": {
 			Input:     struct{}{},
 			ShouldErr: true,
@@ -242,8 +242,7 @@ func TestUnmarshal(t *testing.T) {
 		config interface{}
 		args   []string
 	}
-	fn := func(args ...interface{}) (interface{}, error) {
-		in := args[0].(input)
+	fn := func(in input) (interface{}, error) {
 		if in.config == nil {
 			in.config = &tConfig{}
 		}
@@ -259,7 +258,7 @@ func TestUnmarshal(t *testing.T) {
 
 		return in.config, err
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, interface{}]{
 		"time.duration": {
 			Input:    input{args: []string{"-dura=10s"}},
 			Expected: &tConfig{Dura: 10 * time.Second},
@@ -379,8 +378,7 @@ func TestFlags_Args(t *testing.T) {
 		Name   string
 		Enable bool
 	}
-	fn := func(v ...interface{}) (interface{}, error) {
-		in := v[0].(input)
+	fn := func(in input) (*output, error) {
 		defer func() {
 			// clean up flag state so later tests can re-register flags
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -401,7 +399,7 @@ func TestFlags_Args(t *testing.T) {
 		c.Args = f.Args()
 		return c, nil
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[input, *output]{
 		"no positional args": {
 			Input:    input{args: []string{"-name=foo"}},
 			Expected: &output{Args: []string{}, Name: "foo"},

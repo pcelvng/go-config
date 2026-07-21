@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jbsmith7741/trial"
+	"github.com/hydronica/trial"
 )
 
 const filePath = "../../../test/"
@@ -20,13 +20,12 @@ type SimpleStruct struct {
 }
 
 func TestLoad(t *testing.T) {
-	fn := func(args ...interface{}) (interface{}, error) {
+	fn := func(in string) (*SimpleStruct, error) {
 		c := &SimpleStruct{}
-		f := args[0].(string)
-		err := Load(f, c)
+		err := Load(in, c)
 		return c, err
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[string, *SimpleStruct]{
 		"toml": {
 			Input: filePath + "test.toml",
 			Expected: &SimpleStruct{

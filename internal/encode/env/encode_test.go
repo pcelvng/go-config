@@ -4,18 +4,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jbsmith7741/trial"
+	"github.com/hydronica/trial"
 )
 
 func TestEncoder_Marshal(t *testing.T) {
 	type mStruct struct {
 		value string
 	}
-	fn := func(args ...interface{}) (interface{}, error) {
-		b, err := NewEncoder().Marshal(args[0])
+	fn := func(in interface{}) (string, error) {
+		b, err := NewEncoder().Marshal(in)
 		return string(b), err
 	}
-	cases := trial.Cases{
+	cases := trial.Cases[interface{}, string]{
 		"ints": {
 			Input: &struct {
 				Int   int
