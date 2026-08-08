@@ -8,8 +8,9 @@ import (
 )
 
 func TestEncoder_Marshal(t *testing.T) {
-	type mStruct struct {
-		value string
+	type dbCreds struct {
+		Username string `env:"UN"`
+		Password string `env:"PW"`
 	}
 	fn := func(in interface{}) (string, error) {
 		b, err := NewEncoder().Marshal(in)
@@ -112,7 +113,112 @@ func TestEncoder_Marshal(t *testing.T) {
 				Float:    trial.Float64P(3.4),
 				MyStruct: &mStruct{value: "c"},
 			},
-			Expected: "INT=1\nUINT=2\nFLOAT=3.4\n",
+			Expected: "INT=1\nUINT=2\nFLOAT=3.4\nMY_STRUCT=c\n",
+		},
+
+		// Nested struct regression (see decode_test.go naming contract).
+		"nested: flat blank struct tag": {
+			Input: &struct {
+				Host string
+				DB   struct {
+					Username string `env:"UN"`
+					Password string `env:"PW"`
+				}
+			}{
+				Host: "h",
+				DB: struct {
+					Username string `env:"UN"`
+					Password string `env:"PW"`
+				}{Username: "u", Password: "p"},
+			},
+			Expected: "HOST=h\nUN=u\nPW=p\n",
+		},
+		"nested: prefixed struct tag": {
+			Input: &struct {
+				Host string
+				DB   struct {
+					Username string `env:"UN"`
+					Password string `env:"PW"`
+				} `env:"DB"`
+			}{
+				Host: "h",
+				DB: struct {
+					Username string `env:"UN"`
+					Password string `env:"PW"`
+				}{Username: "u", Password: "p"},
+			},
+			Expected: "HOST=h\nDB_UN=u\nDB_PW=p\n",
+		},
+		"nested: anonymous embed": {
+			Input: &struct {
+				dbCreds
+				Host string
+			}{
+				dbCreds: dbCreds{Username: "u", Password: "p"},
+				Host:    "h",
+			},
+			Expected: "UN=u\nPW=p\nHOST=h\n",
+		},
+		"nested: blank inner under parent prefix": {
+			Input: &struct {
+				Config struct {
+					Creds struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}
+				} `env:"APP"`
+			}{
+				Config: struct {
+					Creds struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}
+				}{
+					Creds: struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}{Username: "u"},
+				},
+			},
+			Expected: "APP_UN=u\nAPP_PW=\"\"\n",
+		},
+		"nested: leaf omitprefix under prefixed parent": {
+			Input: &struct {
+				Config struct {
+					Creds struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}
+					Host string `env:"HOST,omitprefix"`
+				} `env:"APP"`
+			}{
+				Config: struct {
+					Creds struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}
+					Host string `env:"HOST,omitprefix"`
+				}{
+					Creds: struct {
+						Username string `env:"UN"`
+						Password string `env:"PW"`
+					}{Username: "u"},
+					Host: "h",
+				},
+			},
+			Expected: "APP_UN=u\nAPP_PW=\"\"\nHOST=h\n",
+		},
+		"nested: marshaler leaf prefixed": {
+			Input: &struct {
+				Block struct {
+					Meta mStruct `env:"META"`
+				} `env:"APP"`
+			}{
+				Block: struct {
+					Meta mStruct `env:"META"`
+				}{Meta: mStruct{"abc"}},
+			},
+			Expected: "APP_META=abc\n",
 		},
 	}
 	trial.New(fn, cases).Test(t)

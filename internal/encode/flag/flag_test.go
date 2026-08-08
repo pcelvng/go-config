@@ -194,6 +194,43 @@ func TestNew(t *testing.T) {
 				"my-struct": {Def: "c"},
 			},
 		},
+
+		// Nested struct regression (see env/decode_test.go naming contract).
+		"nested: flat blank struct tag": {
+			Input: &struct {
+				Host string
+				DB   dbCreds
+			}{},
+			Expected: map[string]*tFlag{
+				"host": {Def: ""},
+				"un":   {Def: ""},
+				"pw":   {Def: ""},
+			},
+		},
+		"nested: prefixed struct tag": {
+			Input: &struct {
+				Host string
+				DB   dbCreds `flag:"db"`
+			}{},
+			Expected: map[string]*tFlag{
+				"host":  {Def: ""},
+				"db.un": {Def: ""},
+				"db.pw": {Def: ""},
+			},
+		},
+		"nested: omitprefix leaf under prefixed parent": {
+			Input: &struct {
+				Config struct {
+					Creds dbCreds
+					Host  string `flag:"host,omitprefix"`
+				} `flag:"app"`
+			}{},
+			Expected: map[string]*tFlag{
+				"app.un": {Def: ""},
+				"app.pw": {Def: ""},
+				"host":   {Def: ""},
+			},
+		},
 	}
 	trial.New(fn, cases).SubTest(t)
 }
@@ -321,6 +358,102 @@ func TestUnmarshal(t *testing.T) {
 				args:   []string{"-mstruct=abc", "-pstruct=def"},
 			},
 			Expected: &tStruct{MStruct: mStruct{"abc"}, PStruct: &mStruct{"def"}},
+		},
+
+		// Nested struct regression (see env/decode_test.go naming contract).
+		"nested: flat blank struct tag": {
+			Input: input{
+				config: &struct {
+					Host string
+					DB   dbCreds
+				}{},
+				args: []string{"-un=u", "-pw=p", "-host=h"},
+			},
+			Expected: &struct {
+				Host string
+				DB   dbCreds
+			}{
+				Host: "h",
+				DB:   dbCreds{Username: "u", Password: "p"},
+			},
+		},
+		"nested: prefixed struct tag": {
+			Input: input{
+				config: &struct {
+					Host string
+					DB   dbCreds `flag:"db"`
+				}{},
+				args: []string{"-db.un=u", "-db.pw=p"},
+			},
+			Expected: &struct {
+				Host string
+				DB   dbCreds `flag:"db"`
+			}{
+				DB: dbCreds{Username: "u", Password: "p"},
+			},
+		},
+		"nested: inherit prefix with leaf omitprefix": {
+			Input: input{
+				config: &struct {
+					Config struct {
+						Creds dbCreds
+						Host  string `flag:"host,omitprefix"`
+					} `flag:"app"`
+				}{},
+				args: []string{"-app.un=u", "-host=h"},
+			},
+			Expected: &struct {
+				Config struct {
+					Creds dbCreds
+					Host  string `flag:"host,omitprefix"`
+				} `flag:"app"`
+			}{
+				Config: struct {
+					Creds dbCreds
+					Host  string `flag:"host,omitprefix"`
+				}{
+					Creds: dbCreds{Username: "u"},
+					Host:  "h",
+				},
+			},
+		},
+		"nested: marshaler leaf prefixed": {
+			Input: input{
+				config: &struct {
+					Block struct {
+						Meta mStruct `flag:"meta"`
+					} `flag:"app"`
+				}{},
+				args: []string{"-app.meta=abc"},
+			},
+			Expected: &struct {
+				Block struct {
+					Meta mStruct `flag:"meta"`
+				} `flag:"app"`
+			}{
+				Block: struct {
+					Meta mStruct `flag:"meta"`
+				}{Meta: mStruct{"abc"}},
+			},
+		},
+		"nested: marshaler leaf omitprefix": {
+			Input: input{
+				config: &struct {
+					Block struct {
+						Meta mStruct `flag:"meta,omitprefix"`
+					} `flag:"app"`
+				}{},
+				args: []string{"-meta=abc"},
+			},
+			Expected: &struct {
+				Block struct {
+					Meta mStruct `flag:"meta,omitprefix"`
+				} `flag:"app"`
+			}{
+				Block: struct {
+					Meta mStruct `flag:"meta,omitprefix"`
+				}{Meta: mStruct{"abc"}},
+			},
 		},
 		"keep value for default": {
 			Input: input{
@@ -464,4 +597,9 @@ func (m mStruct) MarshalText() ([]byte, error) {
 func (m *mStruct) UnmarshalText(b []byte) error {
 	m.value = string(b)
 	return nil
+}
+
+type dbCreds struct {
+	Username string `flag:"un"`
+	Password string `flag:"pw"`
 }

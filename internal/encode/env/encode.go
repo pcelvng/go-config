@@ -2,6 +2,7 @@ package env
 
 import (
 	"bytes"
+	"encoding"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -23,113 +24,135 @@ type Encoder struct {
 }
 
 func (e *Encoder) Marshal(v interface{}) ([]byte, error) {
-	return e.marshal("", v)
-}
-
-func (e *Encoder) marshal(prefix string, v interface{}) ([]byte, error) {
-	// Verify that v is struct pointer. Should not be nil.
-	if value := reflect.ValueOf(v); value.Kind() != reflect.Ptr || value.IsNil() {
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr || val.IsNil() {
 		return nil, fmt.Errorf("'%v' must be a non-nil pointer", reflect.TypeOf(v))
-
-		// Must be pointing to a struct.
-	} else if pv := reflect.Indirect(value); pv.Kind() != reflect.Struct {
+	}
+	vStruct := val.Elem()
+	if vStruct.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("'%v' must be a non-nil pointer struct", reflect.TypeOf(v))
 	}
+	e.buf.Reset()
+	return e.marshal("", vStruct)
+}
 
-	// iterate through the struct field.
-	vStruct := reflect.ValueOf(v).Elem()
+func (e *Encoder) marshal(prefix string, vStruct reflect.Value) ([]byte, error) {
 	for i := 0; i < vStruct.NumField(); i++ {
+		sf := vStruct.Type().Field(i)
 		field := vStruct.Field(i)
+		if !encode.ShouldProcessField(sf, field) {
+			continue
+		}
+		if sf.Tag.Get(encode.ConfigTag) == "ignore" {
+			continue
+		}
+		raw := sf.Tag.Get(encode.EnvTag)
+		if raw == "-" {
+			continue
+		}
+		name, omitPrefix, _ := encode.ParseTag(raw)
 
-		if !field.CanSet() { // skip private variables
+		if encode.IsRecursableStruct(field) {
+			if omitPrefix {
+				return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+			}
+			childPrefix := prefix
+			switch {
+			case name == "omitprefix":
+				childPrefix = ""
+			case name != "":
+				childPrefix = encode.JoinPrefix(prefix, name, "_")
+			}
+			if field.Kind() == reflect.Ptr && field.IsNil() {
+				continue
+			}
+			child, ok := encode.StructValue(field)
+			if !ok {
+				continue
+			}
+			if _, err := e.marshal(childPrefix, child); err != nil {
+				return nil, err
+			}
 			continue
 		}
 
-		// Check general 'config' tag value. if it has a "ignore" value
-		// then skip it entirely.
-		if cfgV := vStruct.Type().Field(i).Tag.Get(encode.ConfigTag); cfgV == "ignore" {
-			continue
+		if name == "omitprefix" {
+			return nil, fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
 		}
-
-		// env tag name, if present, trumps the generated field name.
-		//
-		// If the field name is used it is converted to screaming snake case (uppercase with underscores).
-		name := vStruct.Type().Field(i).Name
-		tag := vStruct.Type().Field(i).Tag.Get(encode.EnvTag) // env tag value
-		switch tag {
-		case "-":
-			continue // ignore field
-		case "omitprefix":
-			// Should only be used on struct field types, in
-			// which case an existing prefix is passed through
-			// to the struct fields. The immediate struct field
-			// has no prefix.
-			name = ""
-		case "":
-			name = strcase.ToScreamingSnake(name)
-		default:
-			name = tag
+		segment := strcase.ToScreamingSnake(sf.Name)
+		if name != "" {
+			segment = name
 		}
-
-		// prepend prefix
-		if prefix != "" {
-			// An empty name takes on the prefix so that
-			// it can passthrough if the type is a struct or pointer struct.
-			if name == "" {
-				name = prefix
-			} else {
-				// An existing underscore means there will be 2 underscores. The user is given almost full reign on
-				// naming as long as it's valid.
-				name = prefix + "_" + name
-			}
+		key := encode.JoinPrefix(prefix, segment, "_")
+		if omitPrefix {
+			key = segment
 		}
-	typeCheck:
-		// if the value type is a struct or struct pointer then recurse.
-		switch field.Kind() {
-		// explicitly ignored list of types.
-		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map:
-			continue
-		case reflect.String:
-			e.write(name, field.String())
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if field.Type().String() == "time.Duration" {
-				e.write(name, field.Interface().(time.Duration).String())
-				continue
-			}
-			e.write(name, field.Int())
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			e.write(name, field.Uint())
-		case reflect.Bool:
-			e.write(name, field.Bool())
-		case reflect.Float32, reflect.Float64:
-			e.write(name, field.Float())
-
-		case reflect.Struct:
-			// time.Time special struct case
-			if field.Type().String() == "time.Time" {
-				// check for 'fmt' tag.
-				timeFmt := vStruct.Type().Field(i).Tag.Get(encode.FormatTag)
-				if timeFmt == "" {
-					timeFmt = time.RFC3339
-				}
-				e.write(name, field.Interface().(time.Time).Format(timeFmt))
-				continue
-			}
-
-		case reflect.Ptr:
-			// if it's a ptr to a struct then recurse otherwise fallthrough
-			if field.IsNil() {
-				continue
-				// should we set nil variables
-			}
-
-			field = field.Elem()
-			// dereference and reprocess
-			goto typeCheck
+		if err := e.writeField(key, field, sf); err != nil {
+			return nil, err
 		}
 	}
 
 	return e.buf.Bytes(), nil
+}
+
+func (e *Encoder) writeField(name string, field reflect.Value, sf reflect.StructField) error {
+typeCheck:
+	switch field.Kind() {
+	case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map:
+		return nil
+	case reflect.String:
+		e.write(name, field.String())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if field.Type().String() == "time.Duration" {
+			e.write(name, field.Interface().(time.Duration).String())
+			return nil
+		}
+		e.write(name, field.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		e.write(name, field.Uint())
+	case reflect.Bool:
+		e.write(name, field.Bool())
+	case reflect.Float32, reflect.Float64:
+		e.write(name, field.Float())
+	case reflect.Struct:
+		if field.Type().String() == "time.Time" {
+			timeFmt := sf.Tag.Get(encode.FormatTag)
+			if timeFmt == "" {
+				timeFmt = time.RFC3339
+			}
+			e.write(name, field.Interface().(time.Time).Format(timeFmt))
+			return nil
+		}
+		if b, ok := marshalText(field); ok {
+			e.write(name, string(b))
+			return nil
+		}
+	case reflect.Ptr:
+		if field.IsNil() {
+			return nil
+		}
+		field = field.Elem()
+		goto typeCheck
+	case reflect.Slice:
+		e.write(name, field.Interface())
+	}
+	return nil
+}
+
+func marshalText(field reflect.Value) ([]byte, bool) {
+	if field.CanInterface() {
+		if m, ok := field.Interface().(encoding.TextMarshaler); ok {
+			b, err := m.MarshalText()
+			return b, err == nil
+		}
+	}
+	if field.CanAddr() {
+		if m, ok := field.Addr().Interface().(encoding.TextMarshaler); ok {
+			b, err := m.MarshalText()
+			return b, err == nil
+		}
+	}
+	return nil, false
 }
 
 func (e *Encoder) write(field string, value interface{}) {
