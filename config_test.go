@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -352,8 +353,8 @@ func TestArgs_beforeLoad(t *testing.T) {
 
 func TestGoConfig_ConfigPath(t *testing.T) {
 	type input struct {
-		configPath string
-		flags      []string
+		configPaths []string
+		flags       []string
 	}
 	fn := func(in input) (testStruct, error) {
 		defer func() {
@@ -367,12 +368,12 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 			Float32: 12.3,
 		}
 		os.Args = append([]string{"go-config"}, in.flags...)
-		err := New(&c).ConfigPath(in.configPath).Disable(OptEnv | OptEnvFile).Load()
+		err := New(&c).ConfigPath(in.configPaths...).Disable(OptEnv | OptEnvFile).Load()
 		return c, err
 	}
 	cases := trial.Cases[input, testStruct]{
 		"loads default path when -c not provided": {
-			Input: input{configPath: "test/test.toml"},
+			Input: input{configPaths: []string{"test/test.toml"}},
 			Expected: testStruct{
 				Name:    "toml",
 				Time:    trial.TimeDay("2010-08-10"),
@@ -385,8 +386,8 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 		},
 		"-c overrides default path": {
 			Input: input{
-				configPath: "test/test.toml",
-				flags:      []string{"-c=test/test.yaml"},
+				configPaths: []string{"test/test.toml"},
+				flags:       []string{"-c=test/test.yaml"},
 			},
 			Expected: testStruct{
 				Name:    "yaml",
@@ -399,7 +400,7 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 			},
 		},
 		"empty default does not load file": {
-			Input: input{configPath: ""},
+			Input: input{configPaths: []string{""}},
 			Expected: testStruct{
 				Dura:    time.Second,
 				Value:   1,
@@ -407,8 +408,125 @@ func TestGoConfig_ConfigPath(t *testing.T) {
 				Float32: 12.3,
 			},
 		},
-		"missing default path returns error": {
-			Input:     input{configPath: "missing.toml"},
+		"missing default path warns and continues": {
+			Input: input{configPaths: []string{"missing.toml"}},
+			Expected: testStruct{
+				Dura:    time.Second,
+				Value:   1,
+				Uint:    2,
+				Float32: 12.3,
+			},
+		},
+		"first of several defaults wins": {
+			Input: input{configPaths: []string{"test/test.toml", "test/test.yaml"}},
+			Expected: testStruct{
+				Name:    "toml",
+				Time:    trial.Day("2010-08-10"),
+				Dura:    10 * time.Second,
+				Enable:  true,
+				Value:   10,
+				Uint:    2,
+				Float32: 99.9,
+			},
+		},
+		"falls through to second when first missing": {
+			Input: input{configPaths: []string{"missing.toml", "test/test.yaml"}},
+			Expected: testStruct{
+				Name:    "yaml",
+				Time:    trial.Day("2010-08-10"),
+				Dura:    10 * time.Second,
+				Enable:  true,
+				Value:   10,
+				Uint:    2,
+				Float32: 12.3,
+			},
+		},
+		"none of several defaults found warns and continues": {
+			Input: input{configPaths: []string{"missing1.toml", "missing2.yaml"}},
+			Expected: testStruct{
+				Dura:    time.Second,
+				Value:   1,
+				Uint:    2,
+				Float32: 12.3,
+			},
+		},
+		"-c overrides all defaults": {
+			Input: input{
+				configPaths: []string{"test/test.toml", "missing.toml"},
+				flags:       []string{"-c=test/test.yaml"},
+			},
+			Expected: testStruct{
+				Name:    "yaml",
+				Time:    trial.Day("2010-08-10"),
+				Dura:    10 * time.Second,
+				Enable:  true,
+				Value:   10,
+				Uint:    2,
+				Float32: 12.3,
+			},
+		},
+	}
+	trial.New(fn, cases).SubTest(t)
+}
+
+func TestResolveBinaryPath(t *testing.T) {
+	// Fixed fixture: binDir holds a plain file, a subdirectory file, and a symlink
+	// that points outside binDir.
+	binDir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(binDir, "config.toml"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(binDir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "sub", "nested.toml"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	secret := filepath.Join(outside, "secret.toml")
+	if err := os.WriteFile(secret, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(binDir, "link.toml")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resolved paths come back under the symlink-evaluated binDir, so compare
+	// against that same base.
+	evalBinDir, err := filepath.EvalSymlinks(binDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fn := func(in string) (string, error) {
+		got, err := resolveBinaryPath(binDir, in)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Rel(evalBinDir, got)
+	}
+	cases := trial.Cases[string, string]{
+		"plain file": {
+			Input:    "config.toml",
+			Expected: "config.toml",
+		},
+		"subdir file": {
+			Input:    "sub/nested.toml",
+			Expected: filepath.Join("sub", "nested.toml"),
+		},
+		"missing file returns path under binary dir": {
+			Input:    "missing.toml",
+			Expected: "missing.toml",
+		},
+		"rejects absolute path": {
+			Input:     "/etc/config.toml",
+			ShouldErr: true,
+		},
+		"rejects path traversal": {
+			Input:     "../config.toml",
+			ShouldErr: true,
+		},
+		"rejects symlink escape": {
+			Input:     "link.toml",
 			ShouldErr: true,
 		},
 	}

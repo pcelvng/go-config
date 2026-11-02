@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -14,6 +15,9 @@ import (
 	"github.com/hydronica/go-config/internal/encode/file"
 	flg "github.com/hydronica/go-config/internal/encode/flag"
 )
+
+// executable is a seam for tests; production uses os.Executable.
+var executable = os.Executable
 
 // goConfig should probably be private so it can only be set through the new method.
 // This does mean that the variable can probably only be set with a ":=" which would prevent
@@ -32,7 +36,8 @@ type goConfig struct {
 	genConfig   *string
 	configPath  *string
 
-	defaultConfigPath string
+	defaultConfigPaths []string
+	defaultBinary      bool // when true, resolve ConfigPath defaults relative to the executable
 
 	flags *flg.Flags
 }
@@ -143,8 +148,12 @@ func (g *goConfig) Load() error {
 			g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml,env)")
 			flag.StringVar(g.genConfig, "gen", "", "")
 		}
-		g.configPath = flag.String("c", g.defaultConfigPath, "path for config file")
-		flag.StringVar(g.configPath, "config", g.defaultConfigPath, "")
+		cUsage := "path for config file"
+		if len(g.defaultConfigPaths) > 0 {
+			cUsage = fmt.Sprintf("path for config file (defaults: %s)", strings.Join(g.defaultConfigPaths, ", "))
+		}
+		g.configPath = flag.String("c", "", cUsage)
+		flag.StringVar(g.configPath, "config", "", "")
 	}
 
 	f.Usage = func() {
@@ -206,8 +215,8 @@ func (g *goConfig) Load() error {
 		}
 	}
 
-	if g.options.isEnabled(OptFiles) && *g.configPath != "" {
-		if err := file.Load(*g.configPath, g.config); err != nil {
+	if g.options.isEnabled(OptFiles) {
+		if err := g.loadConfigFile(); err != nil {
 			return err
 		}
 	}
@@ -295,12 +304,132 @@ func (g *goConfig) Description(s string) *goConfig {
 	return g
 }
 
-// ConfigPath sets the default config file path used when -c or -config is not
-// provided. The path appears as the default in help output and is loaded
-// automatically. An explicit -c or -config flag overrides this value.
-func (g *goConfig) ConfigPath(path string) *goConfig {
-	g.defaultConfigPath = path
+// ConfigPath sets default config file paths used when -c or -config is not
+// provided. Paths are tried in order; the first that exists is loaded. Empty
+// strings are ignored. An explicit -c or -config flag overrides these values.
+func (g *goConfig) ConfigPath(paths ...string) *goConfig {
+	g.defaultConfigPaths = g.defaultConfigPaths[:0]
+	for _, p := range paths {
+		if p != "" {
+			g.defaultConfigPaths = append(g.defaultConfigPaths, p)
+		}
+	}
 	return g
+}
+
+// RelativeToBinary resolves ConfigPath defaults against the executable's
+// directory. Absolute paths and ".." segments are rejected.
+func (g *goConfig) RelativeToBinary() *goConfig {
+	g.defaultBinary = true
+	return g
+}
+
+// RelativeToWorkDir resolves ConfigPath defaults against the working directory.
+// This is the default.
+func (g *goConfig) RelativeToWorkDir() *goConfig {
+	g.defaultBinary = false
+	return g
+}
+
+// loadConfigFile loads from -c/-config when set, otherwise the first existing
+// ConfigPath default. Missing defaults warn and continue; an explicit missing
+// -c path still errors.
+func (g *goConfig) loadConfigFile() error {
+	configExplicit := false
+	if g.flags != nil {
+		g.flags.Visit(func(f *flag.Flag) {
+			if f.Name == "c" || f.Name == "config" {
+				configExplicit = true
+			}
+		})
+	}
+
+	if configExplicit {
+		if *g.configPath == "" {
+			return nil
+		}
+		return file.Load(*g.configPath, g.config)
+	}
+
+	if len(g.defaultConfigPaths) == 0 {
+		return nil
+	}
+
+	checked := make([]string, 0, len(g.defaultConfigPaths))
+	for _, p := range g.defaultConfigPaths {
+		resolved, err := g.resolveDefaultPath(p)
+		if err != nil {
+			return err
+		}
+		checked = append(checked, resolved)
+		if _, err := os.Stat(resolved); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		return file.Load(resolved, g.config)
+	}
+	log.Printf("no config file found, checked: %s", strings.Join(checked, ", "))
+	return nil
+}
+
+// resolveDefaultPath returns the filesystem path for a ConfigPath entry.
+func (g *goConfig) resolveDefaultPath(path string) (string, error) {
+	if !g.defaultBinary {
+		return path, nil
+	}
+	exe, err := executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve binary path: %w", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("resolve binary path: %w", err)
+	}
+	return resolveBinaryPath(filepath.Dir(exe), path)
+}
+
+// resolveBinaryPath resolves path under binDir and rejects anything that escapes
+// it, either lexically (absolute paths, "..") or through a symlink.
+func resolveBinaryPath(binDir, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return "", fmt.Errorf("config path %q: absolute paths not allowed with RelativeToBinary", path)
+	}
+	// Evaluate the base too, so a symlinked base (e.g. macOS /var -> /private/var)
+	// compares equal to the symlink-resolved target below.
+	binDir, err := filepath.EvalSymlinks(binDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve binary dir: %w", err)
+	}
+	joined := filepath.Clean(filepath.Join(binDir, path))
+
+	// After Clean, Rel is ".." or "../..." iff joined escaped binDir.
+	rel, err := filepath.Rel(binDir, joined)
+	if err != nil || escapesBase(rel) {
+		return "", fmt.Errorf("config path %q: escapes binary directory", path)
+	}
+
+	resolved, err := filepath.EvalSymlinks(joined)
+	if err != nil {
+		// Missing file or broken link: caller treats as not found.
+		if os.IsNotExist(err) {
+			return joined, nil
+		}
+		return "", fmt.Errorf("resolve config path %q: %w", path, err)
+	}
+	rel, err = filepath.Rel(binDir, resolved)
+	if err != nil || escapesBase(rel) {
+		return "", fmt.Errorf("config path %q: escapes binary directory", path)
+	}
+	return resolved, nil
+}
+
+// escapesBase reports whether a filepath.Rel result leaves the base directory.
+// Rel uses ".." / "../..." for escapes; a bare HasPrefix("..") would also
+// reject a legitimate file named "..foo".
+func escapesBase(rel string) bool {
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 // Deprecated: Use Disable(OptEnv) instead
