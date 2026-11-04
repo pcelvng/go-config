@@ -36,107 +36,140 @@ func New(i interface{}) (*Flags, error) {
 	if !isValidConfig(i) {
 		return nil, errors.New("invalid config, must be pointer to a struct")
 	}
-	vStruct := reflect.ValueOf(i).Elem()
-	for i := 0; i < vStruct.NumField(); i++ {
-		field := vStruct.Field(i)
-		dField := vStruct.Type().Field(i)
-		tag := dField.Tag.Get(encode.FlagTag)
-		name := strcase.ToKebab(dField.Name)
-		desc := dField.Tag.Get(encode.DescTag)
-		confTag := dField.Tag.Get(encode.ConfigTag)
-		if tag == "" {
-			tag = name
-		}
-
-		// skip private variables and disabled flags
-		if tag == "-" || confTag == "ignore" || !field.CanSet() {
-			continue
-		}
-
-		if isAlias(field) {
-			/*if field.Type().String() == "time.Duration" {
-				d := field.Interface().(time.Duration)
-				flagSet.String(tag, d.String(), desc)
-				continue
-			}*/
-			if implementsStringer(field) {
-				s := field.Interface().(fmt.Stringer).String()
-				flagSet.String(tag, s, desc)
-				flg.defaults[tag] = s
-				continue
-			}
-			if implementsMarshaler(field) {
-				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
-				flagSet.String(tag, string(b), desc)
-				flg.defaults[tag] = string(b)
-				continue
-			}
-		}
-	switchStart:
-		switch field.Kind() {
-		// explicit list of unsupported types
-		case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map, reflect.Slice:
-			continue
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-			i := int(field.Int())
-			flagSet.Int(tag, i, desc)
-			flg.defaults[tag] = strconv.Itoa(i)
-		case reflect.Int64:
-			flagSet.Int64(tag, field.Int(), desc)
-			flg.defaults[tag] = strconv.FormatInt(field.Int(), 10)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			flagSet.Uint(tag, uint(field.Uint()), desc)
-			flg.defaults[tag] = strconv.FormatUint(field.Uint(), 10)
-		case reflect.Uint64:
-			flagSet.Uint64(tag, field.Uint(), desc)
-			flg.defaults[tag] = strconv.FormatUint(field.Uint(), 10)
-		case reflect.String:
-			flagSet.String(tag, field.String(), desc)
-			flg.defaults[tag] = field.String()
-		case reflect.Bool:
-			flagSet.Bool(tag, field.Bool(), desc)
-			if field.Bool() {
-				flg.defaults[tag] = "true"
-			} else {
-				flg.defaults[tag] = "false"
-			}
-		case reflect.Float32, reflect.Float64:
-			flagSet.Float64(tag, field.Float(), desc)
-			flg.defaults[tag] = strconv.FormatFloat(field.Float(), 'f', -1, 64)
-		case reflect.Ptr:
-			// if nil create a new instance so we can setup the flag
-			if field.IsNil() {
-				field = reflect.New(field.Type().Elem())
-			}
-			field = field.Elem()
-			goto switchStart // easiest solution, but do we want a goto statement
-		case reflect.Struct:
-
-			if field.Type().String() == "time.Time" {
-				timeFmt := dField.Tag.Get(encode.FormatTag)
-				timeFmt = getTimeFormat(timeFmt)
-				t := field.Interface().(time.Time)
-				flagSet.String(tag, t.Format(timeFmt), desc)
-				flg.defaults[tag] = t.Format(timeFmt)
-				continue
-			}
-
-			// support a struct if they implement a marshaler
-			if implementsMarshaler(field) {
-				b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
-				flagSet.String(tag, string(b), desc)
-				flg.defaults[tag] = string(b)
-			}
-		}
+	if err := registerFlags(flagSet, flg.defaults, "", reflect.ValueOf(i).Elem()); err != nil {
+		return nil, err
 	}
 	flg.FlagSet = flagSet
 	return flg, nil
 }
 
+func registerFlags(flagSet *flag.FlagSet, defaults map[string]string, prefix string, vStruct reflect.Value) error {
+	for i := 0; i < vStruct.NumField(); i++ {
+		sf := vStruct.Type().Field(i)
+		field := vStruct.Field(i)
+
+		if !encode.ShouldProcessField(sf, field) {
+			continue
+		}
+		if sf.Tag.Get(encode.ConfigTag) == "ignore" {
+			continue
+		}
+		raw := sf.Tag.Get(encode.FlagTag)
+		if raw == "-" {
+			continue
+		}
+		name, omitPrefix, _ := encode.ParseTag(raw)
+
+		if encode.IsRecursableStruct(field) {
+			if omitPrefix {
+				return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+			}
+			childPrefix := prefix
+			switch {
+			case name == "omitprefix":
+				childPrefix = ""
+			case name != "":
+				childPrefix = encode.JoinPrefix(prefix, name, ".")
+			}
+			child, ok := encode.StructValue(field)
+			if !ok {
+				continue
+			}
+			if err := registerFlags(flagSet, defaults, childPrefix, child); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if name == "omitprefix" {
+			return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+		}
+		segment := strcase.ToKebab(sf.Name)
+		if name != "" {
+			segment = name
+		}
+		key := encode.JoinPrefix(prefix, segment, ".")
+		if omitPrefix {
+			key = segment
+		}
+		if err := registerLeafFlag(flagSet, defaults, key, sf.Tag.Get(encode.DescTag), sf, field); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func registerLeafFlag(flagSet *flag.FlagSet, defaults map[string]string, name, desc string, sf reflect.StructField, field reflect.Value) error {
+	if isAlias(field) {
+		if implementsStringer(field) {
+			s := field.Interface().(fmt.Stringer).String()
+			flagSet.String(name, s, desc)
+			defaults[name] = s
+			return nil
+		}
+		if implementsMarshaler(field) {
+			b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
+			flagSet.String(name, string(b), desc)
+			defaults[name] = string(b)
+			return nil
+		}
+	}
+switchStart:
+	switch field.Kind() {
+	case reflect.Array, reflect.Func, reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.Map, reflect.Slice:
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		i := int(field.Int())
+		flagSet.Int(name, i, desc)
+		defaults[name] = strconv.Itoa(i)
+	case reflect.Int64:
+		flagSet.Int64(name, field.Int(), desc)
+		defaults[name] = strconv.FormatInt(field.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		flagSet.Uint(name, uint(field.Uint()), desc)
+		defaults[name] = strconv.FormatUint(field.Uint(), 10)
+	case reflect.Uint64:
+		flagSet.Uint64(name, field.Uint(), desc)
+		defaults[name] = strconv.FormatUint(field.Uint(), 10)
+	case reflect.String:
+		flagSet.String(name, field.String(), desc)
+		defaults[name] = field.String()
+	case reflect.Bool:
+		flagSet.Bool(name, field.Bool(), desc)
+		if field.Bool() {
+			defaults[name] = "true"
+		} else {
+			defaults[name] = "false"
+		}
+	case reflect.Float32, reflect.Float64:
+		flagSet.Float64(name, field.Float(), desc)
+		defaults[name] = strconv.FormatFloat(field.Float(), 'f', -1, 64)
+	case reflect.Ptr:
+		if field.IsNil() {
+			field = reflect.New(field.Type().Elem())
+		}
+		field = field.Elem()
+		goto switchStart
+	case reflect.Struct:
+		if field.Type().String() == "time.Time" {
+			timeFmt := getTimeFormat(sf.Tag.Get(encode.FormatTag))
+			t := field.Interface().(time.Time)
+			flagSet.String(name, t.Format(timeFmt), desc)
+			defaults[name] = t.Format(timeFmt)
+			return nil
+		}
+		if implementsMarshaler(field) {
+			b, _ := field.Interface().(encoding.TextMarshaler).MarshalText()
+			flagSet.String(name, string(b), desc)
+			defaults[name] = string(b)
+		}
+	}
+	return nil
+}
+
 // Parse the internal flags and the user defined flags.
 // Positional args may appear before, after, or between flags.
 func (f *Flags) Parse() error {
-	// add other defined flags
 	flag.VisitAll(func(flg *flag.Flag) {
 		f.Var(flg.Value, flg.Name, flg.Usage)
 	})
@@ -213,30 +246,134 @@ func (f Flags) Unmarshal(c interface{}) error {
 		return errors.New("invalid config")
 	}
 
-	vStruct := reflect.ValueOf(c).Elem()
 	errs := appenderr.New()
-	for i := 0; i < vStruct.NumField(); i++ {
-		field := vStruct.Field(i)
-		dField := vStruct.Type().Field(i)
-		tag := dField.Tag.Get(encode.FlagTag)
-		name := strcase.ToKebab(dField.Name)
-		//confTag := dField.Tag.Get(configTag)
-		if tag != "" {
-			name = tag
-		}
-
-		flg := f.FlagSet.Lookup(name)
-		if flg == nil {
-			// ignore all types without flags
-			continue
-		}
-		// skip flags set to default
-		if f.defaults[name] == flg.Value.String() {
-			continue
-		}
-		errs.Add(encode.SetField(field, flg.Value.String(), dField))
+	if err := unmarshalFlags(f.FlagSet, f.defaults, "", reflect.ValueOf(c).Elem(), errs); err != nil {
+		return err
 	}
 	return errs.ErrOrNil()
+}
+
+func unmarshalFlags(flagSet *flag.FlagSet, defaults map[string]string, prefix string, vStruct reflect.Value, errs *appenderr.AppendErr) error {
+	for i := 0; i < vStruct.NumField(); i++ {
+		sf := vStruct.Type().Field(i)
+		field := vStruct.Field(i)
+
+		if !encode.ShouldProcessField(sf, field) {
+			continue
+		}
+		if sf.Tag.Get(encode.ConfigTag) == "ignore" {
+			continue
+		}
+		raw := sf.Tag.Get(encode.FlagTag)
+		if raw == "-" {
+			continue
+		}
+		name, omitPrefix, _ := encode.ParseTag(raw)
+
+		if encode.IsRecursableStruct(field) {
+			if omitPrefix {
+				return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+			}
+			childPrefix := prefix
+			switch {
+			case name == "omitprefix":
+				childPrefix = ""
+			case name != "":
+				childPrefix = encode.JoinPrefix(prefix, name, ".")
+			}
+			if !subtreeHasFlagChanges(flagSet, defaults, childPrefix, field) {
+				continue
+			}
+			child, ok := encode.InitStructValue(field)
+			if !ok {
+				continue
+			}
+			if err := unmarshalFlags(flagSet, defaults, childPrefix, child, errs); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if name == "omitprefix" {
+			return fmt.Errorf("'omitprefix' cannot be used on non-struct field types")
+		}
+		segment := strcase.ToKebab(sf.Name)
+		if name != "" {
+			segment = name
+		}
+		key := encode.JoinPrefix(prefix, segment, ".")
+		if omitPrefix {
+			key = segment
+		}
+		flg := flagSet.Lookup(key)
+		if flg == nil {
+			continue
+		}
+		if defaults[key] == flg.Value.String() {
+			continue
+		}
+		errs.Add(encode.SetField(field, flg.Value.String(), sf))
+	}
+	return nil
+}
+
+func subtreeHasFlagChanges(flagSet *flag.FlagSet, defaults map[string]string, prefix string, field reflect.Value) bool {
+	child, ok := encode.StructValue(field)
+	if !ok {
+		return false
+	}
+	for i := 0; i < child.NumField(); i++ {
+		sf := child.Type().Field(i)
+		f := child.Field(i)
+		if !encode.ShouldProcessField(sf, f) {
+			continue
+		}
+		if sf.Tag.Get(encode.ConfigTag) == "ignore" {
+			continue
+		}
+		raw := sf.Tag.Get(encode.FlagTag)
+		if raw == "-" {
+			continue
+		}
+		name, omitPrefix, _ := encode.ParseTag(raw)
+
+		if encode.IsRecursableStruct(f) {
+			if omitPrefix {
+				continue
+			}
+			childPrefix := prefix
+			switch {
+			case name == "omitprefix":
+				childPrefix = ""
+			case name != "":
+				childPrefix = encode.JoinPrefix(prefix, name, ".")
+			}
+			if subtreeHasFlagChanges(flagSet, defaults, childPrefix, f) {
+				return true
+			}
+			continue
+		}
+
+		if name == "omitprefix" {
+			continue
+		}
+		segment := strcase.ToKebab(sf.Name)
+		if name != "" {
+			segment = name
+		}
+		key := encode.JoinPrefix(prefix, segment, ".")
+		if omitPrefix {
+			key = segment
+		}
+		flg := flagSet.Lookup(key)
+		if flg == nil {
+			continue
+		}
+		if defaults[key] != flg.Value.String() {
+			return true
+		}
+	}
+	return false
 }
 
 // isValidConfig checks if a config can be properly read and written to.
@@ -277,7 +414,7 @@ func implementsStringer(v reflect.Value) bool {
 
 func getTimeFormat(timeFmt string) string {
 	if timeFmt == "" {
-		timeFmt = time.RFC3339 // default format
+		timeFmt = time.RFC3339
 	}
 	switch timeFmt {
 	case "ANSIC":

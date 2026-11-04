@@ -80,12 +80,16 @@ type options struct {
 }
 ```
 
-You may embed structures. 
+You may embed structures. A blank struct tag inherits the parent prefix; a non-blank tag
+adds a namespace segment (`.` for flags, `_` for env). Use `,omitprefix` on a leaf field
+to opt it out of the parent prefix.
 
 ```sh
 type options struct {
-    DBName  string `flag:"db-name"`
-    DBCreds string `flag:"db"`
+    Config struct {
+        Creds DBCreds
+        Host  string `flag:"host,omitprefix"` // -host (not -app.host)
+    } `flag:"app"` // -app.un, -app.pw for nested creds
 }
 
 type DBCreds struct {
@@ -259,18 +263,23 @@ export DB_PW=;
 > ./myapp -gen=env > myconfig.sh
 ```
 
-When assigning structs as field values you may ignore the value as a prefix by using the "omitprefix" env value.
-This special value only works on struct and struct pointer types.
+When assigning structs as field values you may ignore the value as a prefix by using the
+`omitprefix` tag value on struct fields, or `,omitprefix` on leaf fields under a prefixed parent.
 
 ```sh
 type options struct {
-    Host    string                     // Defaults to 'HOST'.
-    DB      DB      `env:"omitprefix"` // No prefix is expected or generated.
+    Host  string `env:"HOST,omitprefix"` // HOST (not APP_HOST)
+    DB    DB     `env:"omitprefix"`      // subtree uses flat prefix (UN, PW)
+    Block Block  `env:"APP"`             // APP_UN, APP_PW for nested creds
 }
 
 type DB struct {
-    Username string `env:"UN"` 
+    Username string `env:"UN"`
     Password string `env:"PW"`
+}
+
+type Block struct {
+    Creds DBCreds // blank tag inherits APP -> APP_UN
 }
 
 ...

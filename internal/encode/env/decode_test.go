@@ -61,6 +61,10 @@ func TestDecoder_Unmarshal(t *testing.T) {
 		config interface{}
 		args   map[string]string
 	}
+	type dbCreds struct {
+		Username string `env:"UN"`
+		Password string `env:"PW"`
+	}
 	fn := func(in input) (interface{}, error) {
 		os.Clearenv()
 		errs := appenderr.New()
@@ -189,6 +193,200 @@ func TestDecoder_Unmarshal(t *testing.T) {
 			},
 			Expected: &tStruct{MStruct: mStruct{"abc"}, PStruct: &mStruct{"def"}},
 		},
+
+		// Nested struct regression: blank struct tag inherits parent prefix;
+		// non-blank tag appends segment; "NAME,omitprefix" opts leaf out of prefix;
+		// struct "omitprefix" resets subtree; marshaler+explicit tag is a leaf.
+		"nested: flat blank struct tag": {
+			Input: input{
+				config: &struct {
+					Host string
+					DB   dbCreds
+				}{},
+				args: map[string]string{
+					"UN": "u", "PW": "p", "HOST": "h",
+				},
+			},
+			Expected: &struct {
+				Host string
+				DB   dbCreds
+			}{
+				Host: "h",
+				DB:   dbCreds{Username: "u", Password: "p"},
+			},
+		},
+		"nested: prefixed struct tag": {
+			Input: input{
+				config: &struct {
+					Host string
+					DB   dbCreds `env:"DB"`
+				}{},
+				args: map[string]string{
+					"DB_UN": "u", "DB_PW": "p",
+				},
+			},
+			Expected: &struct {
+				Host string
+				DB   dbCreds `env:"DB"`
+			}{
+				DB: dbCreds{Username: "u", Password: "p"},
+			},
+		},
+		"nested: anonymous embed": {
+			Input: input{
+				config: &struct {
+					dbCreds
+					Host string
+				}{},
+				args: map[string]string{
+					"UN": "u", "PW": "p", "HOST": "h",
+				},
+			},
+			Expected: &struct {
+				dbCreds
+				Host string
+			}{
+				dbCreds: dbCreds{Username: "u", Password: "p"},
+				Host:    "h",
+			},
+		},
+		"nested: blank inner under parent prefix": {
+			Input: input{
+				config: &struct {
+					Config struct {
+						Creds dbCreds
+					} `env:"APP"`
+				}{},
+				args: map[string]string{"APP_UN": "u"},
+			},
+			Expected: &struct {
+				Config struct {
+					Creds dbCreds
+				} `env:"APP"`
+			}{
+				Config: struct {
+					Creds dbCreds
+				}{Creds: dbCreds{Username: "u"}},
+			},
+		},
+		"nested: leaf omitprefix": {
+			Input: input{
+				config: &struct {
+					Config struct {
+						Creds dbCreds
+						Host  string `env:"HOST,omitprefix"`
+					} `env:"APP"`
+				}{},
+				args: map[string]string{"HOST": "h"},
+			},
+			Expected: &struct {
+				Config struct {
+					Creds dbCreds
+					Host  string `env:"HOST,omitprefix"`
+				} `env:"APP"`
+			}{
+				Config: struct {
+					Creds dbCreds
+					Host  string `env:"HOST,omitprefix"`
+				}{Host: "h"},
+			},
+		},
+		"nested: struct omitprefix resets subtree": {
+			Input: input{
+				config: &struct {
+					DB struct {
+						Creds dbCreds
+					} `env:"APP"`
+					Legacy struct {
+						Host string
+					} `env:"omitprefix"`
+				}{},
+				args: map[string]string{"HOST": "h"},
+			},
+			Expected: &struct {
+				DB struct {
+					Creds dbCreds
+				} `env:"APP"`
+				Legacy struct {
+					Host string
+				} `env:"omitprefix"`
+			}{
+				Legacy: struct {
+					Host string
+				}{Host: "h"},
+			},
+		},
+		"nested: marshaler leaf prefixed": {
+			Input: input{
+				config: &struct {
+					Block struct {
+						Meta mStruct `env:"META"`
+					} `env:"APP"`
+				}{},
+				args: map[string]string{"APP_META": "abc"},
+			},
+			Expected: &struct {
+				Block struct {
+					Meta mStruct `env:"META"`
+				} `env:"APP"`
+			}{
+				Block: struct {
+					Meta mStruct `env:"META"`
+				}{Meta: mStruct{"abc"}},
+			},
+		},
+		"nested: marshaler leaf omitprefix": {
+			Input: input{
+				config: &struct {
+					Block struct {
+						Meta mStruct `env:"META,omitprefix"`
+					} `env:"APP"`
+				}{},
+				args: map[string]string{"META": "abc"},
+			},
+			Expected: &struct {
+				Block struct {
+					Meta mStruct `env:"META,omitprefix"`
+				} `env:"APP"`
+			}{
+				Block: struct {
+					Meta mStruct `env:"META,omitprefix"`
+				}{Meta: mStruct{"abc"}},
+			},
+		},
+		// PR #11 Bugbot: UnmarshalText-only structs must stay leaves (not recurse).
+		"nested: unmarshaler-only leaf prefixed": {
+			Input: input{
+				config: &struct {
+					Block struct {
+						Meta uStruct `env:"META"`
+					} `env:"APP"`
+				}{},
+				args: map[string]string{"APP_META": "abc"},
+			},
+			Expected: &struct {
+				Block struct {
+					Meta uStruct `env:"META"`
+				} `env:"APP"`
+			}{
+				Block: struct {
+					Meta uStruct `env:"META"`
+				}{Meta: uStruct{"abc"}},
+			},
+		},
+		"nested: pointer struct": {
+			Input: input{
+				config: &struct {
+					DB *dbCreds `env:"DB"`
+				}{},
+				args: map[string]string{"DB_UN": "u"},
+			},
+			Expected: &struct {
+				DB *dbCreds `env:"DB"`
+			}{
+				DB: &dbCreds{Username: "u"},
+			},
+		},
 		"keep value for default": {
 			Input: input{
 				config: &tConfig{
@@ -219,5 +417,15 @@ func (m mStruct) MarshalText() ([]byte, error) {
 
 func (m *mStruct) UnmarshalText(b []byte) error {
 	m.value = string(b)
+	return nil
+}
+
+// uStruct implements encoding.TextUnmarshaler only (no TextMarshaler).
+type uStruct struct {
+	value string
+}
+
+func (u *uStruct) UnmarshalText(b []byte) error {
+	u.value = string(b)
 	return nil
 }
