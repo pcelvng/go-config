@@ -173,14 +173,34 @@ Available Flags:
 
 ```
 
-You may set a default config file path. When set, the file loads automatically if `-c` or
-`-config` is not provided, and the path appears as the default in help output. An explicit
-`-c` or `-config` flag overrides the default.
+You may set one or more default config file paths. Paths are tried in order; the first that
+exists is loaded. If none exist, a warning is logged and loading continues with env and flag
+values. An explicit `-c` or `-config` flag overrides the defaults. Missing defaults are listed
+in the `-c` help text.
 
 ```sh
 func main() {
     appCfg := options{}
-    err := config.New(&appCfg).ConfigPath("config.toml").Load()
+    err := config.New(&appCfg).ConfigPath("config.toml", "config.yaml").Load()
+    if err != nil {
+        println("err: %v", err.Error())
+        os.Exit(0)
+    }
+}
+```
+
+By default, relative default paths resolve against the working directory. Call
+`RelativeToBinary()` to resolve them against the directory containing the executable instead.
+In that mode, absolute paths and `..` segments are rejected so defaults cannot escape the
+binary directory. Call `RelativeToWorkDir()` to switch back.
+
+```sh
+func main() {
+    appCfg := options{}
+    err := config.New(&appCfg).
+        ConfigPath("config.toml").
+        RelativeToBinary().
+        Load()
     if err != nil {
         println("err: %v", err.Error())
         os.Exit(0)
