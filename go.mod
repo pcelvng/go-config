@@ -3,7 +3,6 @@ module github.com/hydronica/go-config
 go 1.18
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/hydronica/toml v0.5.0
 	github.com/hydronica/trial v0.8.0
 	github.com/iancoleman/strcase v0.3.0

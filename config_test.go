@@ -1,9 +1,13 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -544,6 +548,145 @@ func TestResolveBinaryPath(t *testing.T) {
 		},
 	}
 	trial.New(fn, cases).SubTest(t)
+}
+
+func TestShow(t *testing.T) {
+	fn := func(in interface{}) (string, error) {
+		var buf bytes.Buffer
+		err := New(in).Show(&buf)
+		return buf.String(), err
+	}
+	// Named so the nested cases can share a shape. Two anonymous struct literals are different types.
+	type dbCreds struct {
+		User string
+		Pass string
+	}
+	cases := trial.Cases[interface{}, string]{
+		"B1: includes unmasked field": {
+			Input: &struct {
+				Host string
+			}{Host: "localhost"},
+			Expected: "Host: localhost\n",
+		},
+		"B1: masks set field": {
+			Input: &struct {
+				Host     string
+				Password string `mask:"true"`
+			}{Host: "localhost", Password: "s3cret"},
+			Expected: "Host: localhost\nPassword: ****\n",
+		},
+		"B1: masked zero field prints blank": {
+			Input: &struct {
+				Host     string
+				Password string `mask:"true"`
+			}{Host: "localhost"},
+			Expected: "Host: localhost\nPassword:\n",
+		},
+		"B1: nil masked pointer prints nil": {
+			Input: &struct {
+				Token *string `mask:"true"`
+			}{},
+			Expected: "Token: <nil>\n",
+		},
+		"B1: masked struct masks each field": {
+			Input: &struct {
+				Name string
+				DB   dbCreds `mask:"true"`
+			}{Name: "app", DB: dbCreds{User: "root", Pass: "s3cret"}},
+			Expected: "Name: app\nDB:\n  User: ****\n  Pass: ****\n",
+		},
+		"B1: masked struct zero field prints blank": {
+			Input: &struct {
+				DB dbCreds `mask:"true"`
+			}{DB: dbCreds{User: "root"}},
+			Expected: "DB:\n  User: ****\n  Pass:\n",
+		},
+	}
+	trial.New(fn, cases).SubTest(t)
+}
+
+func TestLoadOrDie(t *testing.T) {
+	if os.Getenv("GO_CONFIG_LOAD_OR_DIE") == "1" {
+		// Not a struct pointer, so Load fails before any config is read.
+		New(struct{}{}).LoadOrDie()
+		return
+	}
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "-test.run=^TestLoadOrDie$")
+	cmd.Env = append(os.Environ(), "GO_CONFIG_LOAD_OR_DIE=1")
+	err = cmd.Run()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("LoadOrDie() error = %v, want exit status 1", err)
+	}
+}
+
+func TestLoad_twice(t *testing.T) {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	t.Cleanup(func() {
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	})
+	region := flag.String("region", "", "library flag")
+
+	type cfg struct{ Name string }
+	var first, second cfg
+
+	os.Args = []string{"go-config", "-region=us", "-name=first"}
+	if err := New(&first).Disable(OptEnv | OptEnvFile).Load(); err != nil {
+		t.Fatalf("first Load() error = %v", err)
+	}
+	if first.Name != "first" {
+		t.Fatalf("first Load() Name = %q, want first", first.Name)
+	}
+	if *region != "us" {
+		t.Fatalf("global flag region = %q, want us", *region)
+	}
+
+	os.Args = []string{"go-config", "-name=second"}
+	if err := New(&second).Disable(OptEnv | OptEnvFile).Load(); err != nil {
+		t.Fatalf("second Load() error = %v", err)
+	}
+	if second.Name != "second" {
+		t.Fatalf("second Load() Name = %q, want second", second.Name)
+	}
+}
+
+func TestLoad_reservedFlag(t *testing.T) {
+	const want = `flag "show" is already used by go-config (-show). Call Disable(OptShow), or rename the flag with a tag such as flag:"display".`
+	reset := func() {
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}
+	reset()
+	t.Cleanup(reset)
+
+	flag.Bool("show", false, "app show")
+	os.Args = []string{"go-config"}
+	var cfg struct{ Name string }
+	err := New(&cfg).Disable(OptEnv | OptEnvFile).Load()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("Load() with global -show error = %v, want it to contain %q", err, want)
+	}
+
+	reset()
+	os.Args = []string{"go-config"}
+	var tagged struct {
+		Shown bool `flag:"show"`
+	}
+	err = New(&tagged).Disable(OptEnv | OptEnvFile).Load()
+	if err == nil || err.Error() != want {
+		t.Fatalf("Load() with flag:\"show\" error = %v, want %q", err, want)
+	}
+
+	reset()
+	flag.Bool("show", false, "app show")
+	os.Args = []string{"go-config", "-show"}
+	err = New(&cfg).Disable(OptEnv | OptEnvFile | OptShow).Load()
+	if err != nil {
+		t.Fatalf("Load() with Disable(OptShow) error = %v", err)
+	}
 }
 
 func TestOptions(t *testing.T) {

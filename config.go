@@ -2,15 +2,17 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
-
+	"github.com/hydronica/go-config/internal/encode"
 	"github.com/hydronica/go-config/internal/encode/env"
 	"github.com/hydronica/go-config/internal/encode/file"
 	flg "github.com/hydronica/go-config/internal/encode/flag"
@@ -61,14 +63,14 @@ func New(c interface{}) *goConfig {
 type Options uint64
 
 const (
-	OptEnv Options = 1 << iota
-	OptEnvFile  // load .env from working directory
+	OptEnv     Options = 1 << iota
+	OptEnvFile         // load .env from working directory
 	OptToml
 	OptYaml
 	OptJson
 	OptFlag
-	OptGenConf  // -g to generate config files
-	OptShow     // -show to show the set config values
+	OptGenConf // -g to generate config files
+	OptShow    // -show to show the set config values
 )
 const OptFiles = OptToml | OptYaml | OptJson
 const defaultOpts = OptEnv | OptFiles | OptFlag | OptShow | OptGenConf | OptEnvFile
@@ -100,23 +102,23 @@ func (o Options) isEnabled(v Options) bool {
 	return o&v == v
 }
 
-// LoadOrDie is the same as Load except it exits if there is an error.
+// LoadOrDie is the same as Load except it exits with status 1 if there is an error.
 func (g *goConfig) LoadOrDie() {
 	err := g.Load()
 	if err != nil {
 		log.Printf("err: %v", err.Error())
-		os.Exit(0)
+		os.Exit(1)
 	}
 }
 
 // Load the configs in the following priority from most passive to most active:
 //
-// 1. Defaults
-// 2. Environment variables and the working directory ".env" file (read line by line;
-//    for each struct field, a non-empty value on that key in ".env" overrides os.Getenv)
-//    mapped into the struct
-// 3. File (toml, yaml, json)
-// 4. Flags (exception of config and version flag which are processed first)
+//  1. Defaults
+//  2. Environment variables and the working directory ".env" file (read line by line;
+//     for each struct field, a non-empty value on that key in ".env" overrides os.Getenv)
+//     mapped into the struct
+//  3. File (toml, yaml, json)
+//  4. Flags (exception of config and version flag which are processed first)
 //
 // After the configs are loaded validate the result if config is a Validator.
 //
@@ -126,10 +128,6 @@ func (g *goConfig) LoadOrDie() {
 //
 // Before loading values, special flags (ie -help, -show, -config, -gen) are processed.
 func (g *goConfig) Load() error {
-	if g.options.isEnabled(OptShow) {
-		g.showConfig = flag.Bool("show", false, "print out the value of the config")
-	}
-
 	var f *flg.Flags
 	var err error
 	if g.options.isEnabled(OptFlag) {
@@ -143,18 +141,14 @@ func (g *goConfig) Load() error {
 	}
 	g.flags = f
 
-	if g.options.isEnabled(OptFiles) {
-		if g.options.isEnabled(OptGenConf) {
-			g.genConfig = flag.String("g", "", "generate config file (toml,json,yaml,env)")
-			flag.StringVar(g.genConfig, "gen", "", "")
+	// Reject reserved names used by a struct field or by an app-defined global flag.
+	// Globals are copied into f later in Parse, so they are checked here.
+	for _, rf := range g.reservedFlags() {
+		if f.Lookup(rf.name) != nil || flag.Lookup(rf.name) != nil {
+			return errors.New(rf.Error())
 		}
-		cUsage := "path for config file"
-		if len(g.defaultConfigPaths) > 0 {
-			cUsage = fmt.Sprintf("path for config file (defaults: %s)", strings.Join(g.defaultConfigPaths, ", "))
-		}
-		g.configPath = flag.String("c", "", cUsage)
-		flag.StringVar(g.configPath, "config", "", "")
 	}
+	g.registerSpecialFlags(f)
 
 	f.Usage = func() {
 		// prepend description to help usage
@@ -235,7 +229,9 @@ func (g *goConfig) Load() error {
 	}
 
 	if g.options.isEnabled(OptShow) && *g.showConfig {
-		spew.Dump(g.config)
+		if err := g.Show(os.Stdout); err != nil {
+			return err
+		}
 		os.Exit(0)
 	}
 
@@ -291,11 +287,155 @@ func (g *goConfig) Args() []string {
 }
 
 // Version string that describes the app which enables the -v (version) flag.
+// The flag is registered when Load runs, not when Version is called.
 func (g *goConfig) Version(s string) *goConfig {
-	g.showVersion = flag.Bool("v", false, "show app version")
-	flag.BoolVar(g.showVersion, "version", false, "")
+	g.showVersion = new(bool)
 	g.version = s
 	return g
+}
+
+// reservedFlag is a go-config flag name that apps must not reuse while the option is enabled.
+type reservedFlag struct {
+	name    string
+	action  string
+	example string
+}
+
+func (r reservedFlag) Error() string {
+	return fmt.Sprintf("flag %q is already used by go-config (-%s). %s, or rename the flag with a tag such as %s.", r.name, r.name, r.action, r.example)
+}
+
+// reservedFlags lists special flag names for the options enabled on g.
+func (g *goConfig) reservedFlags() []reservedFlag {
+	var out []reservedFlag
+	if g.options.isEnabled(OptShow) {
+		out = append(out, reservedFlag{name: "show", action: "Call Disable(OptShow)", example: `flag:"display"`})
+	}
+	if g.options.isEnabled(OptFiles) {
+		if g.options.isEnabled(OptGenConf) {
+			out = append(out,
+				reservedFlag{name: "g", action: "Call Disable(OptGenConf)", example: `flag:"generate"`},
+				reservedFlag{name: "gen", action: "Call Disable(OptGenConf)", example: `flag:"generate"`},
+			)
+		}
+		out = append(out,
+			reservedFlag{name: "c", action: "Call Disable(OptFiles)", example: `flag:"cfg"`},
+			reservedFlag{name: "config", action: "Call Disable(OptFiles)", example: `flag:"cfg"`},
+		)
+	}
+	if g.showVersion != nil {
+		out = append(out,
+			reservedFlag{name: "v", action: "Remove the Version() call", example: `flag:"ver"`},
+			reservedFlag{name: "version", action: "Remove the Version() call", example: `flag:"ver"`},
+		)
+	}
+	return out
+}
+
+// registerSpecialFlags adds go-config's own flags to the per-call FlagSet.
+func (g *goConfig) registerSpecialFlags(f *flg.Flags) {
+	if g.options.isEnabled(OptShow) {
+		g.showConfig = f.Bool("show", false, "print out the value of the config")
+	}
+	if g.options.isEnabled(OptFiles) {
+		if g.options.isEnabled(OptGenConf) {
+			g.genConfig = f.String("g", "", "generate config file (toml,json,yaml,env)")
+			f.StringVar(g.genConfig, "gen", "", "")
+		}
+		cUsage := "path for config file"
+		if len(g.defaultConfigPaths) > 0 {
+			cUsage = fmt.Sprintf("path for config file (defaults: %s)", strings.Join(g.defaultConfigPaths, ", "))
+		}
+		g.configPath = f.String("c", "", cUsage)
+		f.StringVar(g.configPath, "config", "", "")
+	}
+	if g.showVersion != nil {
+		f.BoolVar(g.showVersion, "v", false, "show app version")
+		f.BoolVar(g.showVersion, "version", false, "")
+	}
+}
+
+// Show writes g's config to w, one field per line. Fields tagged mask:"true" print
+// **** when set and blank when zero. A masked struct masks each of its fields.
+// Nil pointers print <nil>. Nested structs are indented under their field name.
+// -show calls Show and then exits.
+func (g *goConfig) Show(w io.Writer) error {
+	if w == nil {
+		return errors.New("show: writer is nil")
+	}
+	if g.config == nil {
+		return errors.New("show: config is nil")
+	}
+	v := reflect.ValueOf(g.config)
+	if v.Kind() != reflect.Ptr || v.IsNil() || v.Elem().Kind() != reflect.Struct {
+		return errors.New("show: config must be a pointer to a struct")
+	}
+	return writeShow(w, v.Elem(), 0, false)
+}
+
+// writeShow prints the fields of v. masked is true when an enclosing struct is tagged mask.
+func writeShow(w io.Writer, v reflect.Value, indent int, masked bool) error {
+	for i := 0; i < v.NumField(); i++ {
+		sf := v.Type().Field(i)
+		field := v.Field(i)
+		if !encode.ShouldProcessField(sf, field) {
+			continue
+		}
+		fieldMasked := masked || sf.Tag.Get(encode.MaskTag) == "true"
+		if field.Kind() == reflect.Ptr && field.IsNil() {
+			if err := writeShowLine(w, indent, sf.Name, "<nil>"); err != nil {
+				return err
+			}
+			continue
+		}
+		if encode.IsRecursableStruct(field) {
+			if _, err := fmt.Fprintf(w, "%s%s:\n", strings.Repeat("  ", indent), sf.Name); err != nil {
+				return err
+			}
+			child, ok := encode.StructValue(field)
+			if !ok {
+				continue
+			}
+			if err := writeShow(w, child, indent+1, fieldMasked); err != nil {
+				return err
+			}
+			continue
+		}
+		val := field
+		for val.Kind() == reflect.Ptr && !val.IsNil() {
+			val = val.Elem()
+		}
+		if !val.CanInterface() {
+			continue
+		}
+		if err := writeShowLine(w, indent, sf.Name, showValue(val, fieldMasked)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// showValue returns the printed form of a leaf. Masked values are **** when set and blank when zero.
+func showValue(val reflect.Value, masked bool) string {
+	switch {
+	case !masked:
+		return fmt.Sprint(val.Interface())
+	case val.IsZero():
+		return ""
+	default:
+		return "****"
+	}
+}
+
+// writeShowLine prints one leaf. A blank value prints the name with no trailing space.
+func writeShowLine(w io.Writer, indent int, name, value string) error {
+	pad := strings.Repeat("  ", indent)
+	if value == "" {
+		_, err := fmt.Fprintf(w, "%s%s:\n", pad, name)
+		return err
+	}
+	_, err := fmt.Fprintf(w, "%s%s: %s\n", pad, name, value)
+	return err
 }
 
 // Description for the app, this message is prepended to the help flag

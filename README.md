@@ -80,6 +80,10 @@ type options struct {
 }
 ```
 
+`Load` registers `-show`, `-g`/`-gen`, `-c`/`-config`, and `-v`/`-version` on that call's flag set. `-v` and `-version` are registered only when `Version` was called. Those names are reserved while the matching option is on. 
+
+Free the name with `Disable(OptShow)`, `Disable(OptGenConf)`, or `Disable(OptFiles)`, or by not calling `Version`. These flags are not on the standard `flag.CommandLine`, so use `Load` instead of `flag.Parse`. Global flags with any other name are still parsed, so a flag registered by another library keeps working. `Load` can be called again in the same process.
+
 You may embed structures. A blank struct tag inherits the parent prefix; a non-blank tag
 adds a namespace segment (`.` for flags, `_` for env). Use `,omitprefix` on a leaf field
 to opt it out of the parent prefix.
@@ -102,7 +106,7 @@ You may provide flag aliases (for shorter referencing)
 
 ```sh
 type options struct {
-    DBName `flag:"db-name,n"` // "db-name" or "n" can be supplied.
+    DBName string `flag:"db-name,n"` // "db-name" or "n" can be supplied.
     // Note: flag name conflicts (two or more flags with the same name) will cause config to return an error message 
     // and terminate the program.
 }
@@ -117,7 +121,7 @@ You may provide a description.
 
 ```sh
 type options struct {
-    DBName `flag:"db-name,n" comment:"It's the db name.` // "db-name" or "n" can be supplied.
+    DBName string `flag:"db-name,n" comment:"It's the db name."` // "db-name" or "n" can be supplied.
     // Note: flag name conflicts (two or more flags with the same name) will cause config to return an error message 
     // and terminate the program.
 }
@@ -127,7 +131,7 @@ You may ignore flag struct fields.
 
 ```sh
 type options struct {
-    DBName `flag:"-"` // DBName disabled for flags.
+    DBName string `flag:"-"` // DBName disabled for flags.
 }
 ```
 
@@ -315,41 +319,22 @@ export PW=; # no prefix
 
 ## Other General Options
 
-You may customize the help screen.
+You may prepend text to the help output with Description. Version enables `-v` and `-version`.
 
-```sh
-package main
-
-import (
-    "log"
-    "os"
-    
-    "github.com/hydronica/go-config"
-)
-
-var hlp = `
-{{app}}
-
-Welcome to my application. The purpose of this application is to connect to the database
-and demonstrate the power of go-config.
-
-Flag Options:
-{{flags}}
-`
-
+```go
 func main() {
     appCfg := options{}
-    config.HelpTemplate(hlp)
-    config.AppName("myapp") // Could also include the app version here.
-    err := config.Load(&appCfg)
+    err := config.New(&appCfg).
+        Description("Welcome to my application.\n").
+        Version("1.2.3").
+        Load()
     if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
+        log.Fatal(err)
     }
 }
 
 type options struct {
-    Host     string `flag:"db-host,h" comment:"The db host:port."`
+    Host     string `flag:"db-host" comment:"The db host:port."`
     Username string `flag:"db-un" comment:"The db username."`
     Password string `flag:"db-pw" comment:"The db password."`
 }
@@ -360,63 +345,11 @@ the 'config' tag.
 
 ```sh
 type options struct {
-    DBName `config:"ignore"` // DBName disabled entirely.
+    DBName string `config:"ignore"` // DBName disabled entirely.
 }
 ```
 
-For longer descriptions you may call the "VarComment" package function.
-
-```sh
-func main() {
-    appCfg := options{
-        Host: "localhost:5432", // default host value
-    }
-    config.VarComment("Host", "once upon a time there was a very long description....")
-    config.VarComment("DB.Username", "a really long custom description for the username field...")
-    err := config.Load(&appCfg)
-    if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
-    }
-}
-
-type options struct {
-    Host    string
-    DB      DB
-}
-
-type DB struct {
-    Username string 
-}
-```
-
-If the specified variable field is not found the config will return an error.
-
-```sh
-func main() {
-    appCfg := options{
-        Host: "localhost:5432", // default host value
-    }
-    config.VarComment("DoesNotExist", "once upon a time there was a very long description....")
-    err := config.Load(&appCfg)
-    if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
-    }
-}
-
-type options struct {
-    Host    string
-    DB      DB
-}
-
-...
-
-> ./myapp
-
-"DoesNotExist" is a field that does not exist.
-
-```
+Put longer help text in the `comment` tag. go-config reads that tag when it builds flag usage.
 
 You may specify if a field is required. By default, fields are not required.
 
@@ -441,43 +374,25 @@ type options struct {
 }
 ```
 
-You may disable any configuration type. This is great for simplifying the application user experience so the user 
-is not bombarded with too many options.
+You may turn sources off with Disable, or replace the defaults with SetOptions.
+Disable(OptFiles) removes `-c`/`-config`. SetOptions(OptFlag) keeps flags only.
 
-```sh
+```go
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    config.DisableFlags() // disables custom flags.
-    
-    // Disabling any of the file config formats will mean that file type is not accepted 
-    // for the application and options to generate a template of that type are also disabled.
-    //
-    // Users may wish to disable one or more formats to simplify the user experience. In this way
-    // users are not given too many configuration choices.
-    config.DisableTOML()
-    config.DisableYAML()
-    config.DisableJSON()
-    
-    // You may disable all file configuration types at once to make the application only accept flags and env variables.
-    // If all file config types are disabled then the default help screen and flags will no longer support the 'config'
-    // option.
-    config.DisableFiles()
-    
-    // You may disable env.
-    config.DisableEnv()
-    
-    // You may also specify that 'only' one configuration type is active.
-    config.OnlyFlags()
-    config.OnlyEnv()
-    config.OnlyTOML()
-    config.OnlyJSON()
-   
-    err := config.Load(&appCfg)
+    err := config.New(&appCfg).
+        Disable(config.OptEnv | config.OptEnvFile | config.OptFiles).
+        Load()
     if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
+        log.Fatal(err)
+    }
+
+    // Flags only.
+    err = config.New(&appCfg).SetOptions(config.OptFlag).Load()
+    if err != nil {
+        log.Fatal(err)
     }
 }
 
@@ -487,19 +402,17 @@ type options struct {
 }
 ```
 
-You may choose to provide a Validate() hook for more complex validations and config related initialization. This is
-also convenient from the perspective of unifying where initialization/config related errors come from.
+You may choose to provide a Validate() hook for more complex validations and config related initialization. Load calls Validate after the values are read, when the config implements it.
 
-```sh
+```go
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    
-    err := config.LoadWithValidation(&appCfg)
+
+    err := config.Load(&appCfg)
     if err != nil {
-        println("err: %v", err.Error())
-        os.Exit(0)
+        log.Fatal(err)
     }
 }
 
@@ -513,79 +426,61 @@ type options struct {
 // Validate is called after the config values are read in.
 func (o *options) Validate() error {
     if o.Username == "" && o.Password == "" {
-        return errors.New("Invalid username password combination."
+        return errors.New("Invalid username password combination.")
     }
+    return nil
 }
 ```
 
-Use "LoadOrDie" to automatically print the error and exit the program. This can further simplify initialization but
-at the expense of losing a little control.
+Use LoadOrDie to print the error and exit with status 1. LoadOrDie runs Validate the same way Load does.
 
-```sh
+```go
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    
-    // If there is an error then the config library will display the error and terminate the 
-    // application.
+
+    // On error, go-config prints the error and exits with status 1.
     config.LoadOrDie(&appCfg)
-    
-    // alternatively...
-    config.LoadWithValidationOrDie(&appCfg)
-}
-
-type options struct {
-    Username string `req:"true"`
-    Password string
-}
-
-// Validate implements the config validator interface.
-//
-// Validate is called after the config values are read in.
-func (o *options) Validate() error {
-    if o.Username == "" && o.Password == "" {
-        return errors.New("Invalid username password combination."
-    }
 }
 ```
 
-After reading in config values you can dump the values to stderr. By default, everything is shown but sensitive 
-information may be omitted by setting the "show" tag to false.
+After reading in config values you can write them with Show. Fields tagged `mask:"true"` print `****` when they have a value and print blank when they are zero. A masked struct masks each of its fields. Nil pointers print `<nil>`. This lets you confirm a secret was picked up without printing it.
 
-```sh
+```go
 func main() {
     appCfg := options{
         Host: "localhost:5432", // default host value
     }
-    
-    config.Load(&appCfg)
-    config.ShowValues() // Values dumped to stderr.
+
+    cfg := config.New(&appCfg)
+    if err := cfg.Load(); err != nil {
+        log.Fatal(err)
+    }
+    cfg.Show(os.Stdout)
 }
 
 type options struct {
     Host     string
     Username string `req:"true"`
-    Password string `show:"false"` // default is "true"
+    Password string `mask:"true"` // prints **** when set
 }
-
-...
-
-> ./myapp -host=myhost:5432 -username=myusername -password=mypassword
-Host:     "myhost:5432" (default: "localhost:5432")
-Username: "myusername"
-Password: [redacted]
 ```
 
-You may show the values by providing the 'show' flag. If provided, the application will show all the 
-config values and exit.
+```text
+> ./myapp -host=myhost:5432 -username=myusername
+Host: localhost:5432
+Username: myusername
+Password:
+```
 
-```sh
+`-show` prints the same text and then exits. Pass a password to see the masked form.
+
+```text
 > ./myapp -show -host=myhost:5432 -username=myusername -password=mypassword
-
-Host:     "myhost:5432" (default: "localhost:5432")
-Username: "myusername"
-Password: [redacted]
+Host: myhost:5432
+Username: myusername
+Password: ****
 ```
 
 All types support time.Time and time.Duration marshaling and unmarshaling. 
@@ -607,7 +502,7 @@ type options struct {
 
 func main() {
     cfg := &options{
-        CustomTimeField: time.
+        CustomTimeField: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
     }
 }
 

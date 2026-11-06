@@ -6,6 +6,7 @@ const (
 	DescTag   = "comment"
 	FormatTag = "format"
 	ConfigTag = "config"
+	MaskTag   = "mask"
 )
 
 type Unmarshaler interface {
